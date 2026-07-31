@@ -1,0 +1,113 @@
+{
+  "note": "Real Claude Code hook payloads captured in the C1 observation run (2026-07-28, model claude-opus-5[1m]), in order, spanning a /compact. Verbatim except that the home directory is rewritten to /home/dev. Note `prompt`, not `user_prompt` -- the hooks reference is wrong.",
+  "sequence": [
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "hook_event_name": "SessionStart",
+      "source": "startup",
+      "model": "claude-opus-5[1m]"
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "fabb57b8-b570-4a3d-877f-24b78efcb10d",
+      "permission_mode": "default",
+      "hook_event_name": "UserPromptSubmit",
+      "prompt": "What does greet.py do?"
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "fabb57b8-b570-4a3d-877f-24b78efcb10d",
+      "permission_mode": "default",
+      "effort": {
+        "level": "high"
+      },
+      "hook_event_name": "Stop",
+      "stop_hook_active": false,
+      "last_assistant_message": "`greet.py` (`/private/tmp/memori-c1-scratch/greet.py`) contains a single function:\n\n```python\ndef greet(name):\n    return f\"hello {name}\"\n```\n\nIt takes a `name` and returns the string `\"hello <name>\"` \u2014 lowercase, no punctuation. There's no `__main__` block or other code, so it does nothing when run directly; it's just an importable helper.",
+      "background_tasks": [],
+      "session_crons": []
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "a979c8ca-b172-4f4e-b90d-12b61b588455",
+      "permission_mode": "default",
+      "hook_event_name": "UserPromptSubmit",
+      "prompt": "Can you add a new method to that for goodbye?"
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "a979c8ca-b172-4f4e-b90d-12b61b588455",
+      "permission_mode": "acceptEdits",
+      "effort": {
+        "level": "high"
+      },
+      "hook_event_name": "Stop",
+      "stop_hook_active": false,
+      "last_assistant_message": "Added `goodbye(name)` to `greet.py:5`, matching the existing style \u2014 returns `\"goodbye <name>\"`.",
+      "background_tasks": [],
+      "session_crons": []
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "601fd96f-a03b-48bf-b5cf-a09c4d63fb3d",
+      "hook_event_name": "SessionStart",
+      "source": "compact",
+      "model": "claude-opus-5[1m]"
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "bd873a3d-0ee1-4466-9496-bd1cb1a3d0c7",
+      "permission_mode": "acceptEdits",
+      "hook_event_name": "UserPromptSubmit",
+      "prompt": "Tell me about the greet.py file"
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "bd873a3d-0ee1-4466-9496-bd1cb1a3d0c7",
+      "permission_mode": "acceptEdits",
+      "effort": {
+        "level": "high"
+      },
+      "hook_event_name": "Stop",
+      "stop_hook_active": false,
+      "last_assistant_message": "`greet.py` is a two-function module at `/private/tmp/memori-c1-scratch/greet.py`:\n\n```python\ndef greet(name):\n    return f\"hello {name}\"\n\n\ndef goodbye(name):\n    return f\"goodbye {name}\"\n```\n\n- `greet(name)` returns `\"hello <name>\"`\n- `goodbye(name)` returns `\"goodbye <name>\"` \u2014 the function added in the previous turn\n\nNo classes, imports, docstrings, or `__main__` block; both functions just build a string via f-string interpolation and return it. Nothing is printed or executed on import.",
+      "background_tasks": [],
+      "session_crons": []
+    },
+    {
+      "session_id": "81de4338-5955-44a0-80f2-4a3448da8859",
+      "transcript_path": "/home/dev/.claude/projects/-private-tmp-memori-c1-scratch/81de4338-5955-44a0-80f2-4a3448da8859.jsonl",
+      "cwd": "/private/tmp/memori-c1-scratch",
+      "prompt_id": "9cad7167-0408-451a-b4c1-fb5f7ad9f559",
+      "hook_event_name": "SessionEnd",
+      "reason": "prompt_input_exit"
+    }
+  ],
+  "environment": {
+    "CLAUDE_CODE_ENTRYPOINT": "cli",
+    "CLAUDE_PROJECT_DIR": "/private/tmp/memori-c1-scratch",
+    "CLAUDE_PID": "21090",
+    "CLAUDE_CODE_CHILD_SESSION": "1",
+    "CLAUDE_CODE_SSE_PORT": "20119",
+    "CLAUDE_PLUGIN_ROOT": "/home/dev/src/memori/backend/integrations/claude",
+    "CLAUDE_ENV_FILE": "/home/dev/.claude/session-env/81de4338-5955-44a0-80f2-4a3448da8859/sessionstart-hook-0.sh",
+    "CLAUDE_CODE_SESSION_ID": "81de4338-5955-44a0-80f2-4a3448da8859",
+    "CLAUDE_PLUGIN_DATA": "/home/dev/.claude/plugins/data/memori-inline"
+  }
+}

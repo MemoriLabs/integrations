@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "memorilabs",
+  "owner": {
+    "name": "Memori Labs"
+  },
+  "metadata": {
+    "description": "Official Memori integrations for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "memori",
+      "source": "./claude",
+      "description": "Persistent memory for Claude Code. Recalls what you have told Memori before each prompt and sends each finished turn back to be remembered.",
+      "version": "0.1.0",
+      "category": "productivity",
+      "keywords": ["memory", "recall", "context", "personalization"]
+    }
+  ]
+}

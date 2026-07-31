@@ -1,0 +1,337 @@
+import pytest
+
+PROMPT_ID = "11111111-1111-1111-1111-111111111111"
+OTHER_PROMPT_ID = "22222222-2222-2222-2222-222222222222"
+
+
+def assistant(*blocks, model="claude-opus-5"):
+    return {"type": "assistant", "message": {"content": list(blocks), "model": model}}
+
+
+def user(*blocks, prompt_id=PROMPT_ID, **extra):
+    return {
+        "type": "user",
+        "promptId": prompt_id,
+        "message": {"content": list(blocks)},
+        **extra,
+    }
+
+
+def text(value):
+    return {"type": "text", "text": value}
+
+
+def turn(prompt_id=PROMPT_ID, prompt="remember that I prefer tabs"):
+    """One realistic turn: prompt, thinking, reply, tool call, tool result."""
+
+    return [
+        user(text(prompt), prompt_id=prompt_id),
+        assistant(
+            {"type": "thinking", "thinking": "they seem to be in a hurry"},
+            text("Noted."),
+            {"type": "tool_use", "name": "Bash", "input": {"command": "cat .env"}},
+        ),
+        user(
+            {"type": "tool_result", "content": "OPENAI_API_KEY=sk-secret"},
+            prompt_id=prompt_id,
+        ),
+        assistant(text("Done.")),
+    ]
+
+
+@pytest.fixture
+def run_stop(run_hook, stop_payload):
+    def _run(
+        path,
+        prompt_id=PROMPT_ID,
+        env=None,
+        last_assistant_message="",
+        stop_hook_active=False,
+    ):
+        payload = {
+            **stop_payload,
+            "last_assistant_message": last_assistant_message,
+            "prompt_id": prompt_id,
+            "stop_hook_active": stop_hook_active,
+            "transcript_path": path,
+        }
+
+        return run_hook(payload, env=env)
+
+    return _run
+
+
+def bodies(api):
+    return {request["path"]: request["body"] for request in api.requests}
+
+
+def contents(api):
+    conversation = bodies(api)["/v1/augmentation"]["conversation"]
+
+    return [message["content"] for message in conversation["messages"]]
+
+
+def test_posts_the_turn_before_the_augmentation(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    # AugmentationQueueProcessor reads conversation_turn for the session's
+    # history, and only /v1/conversation/turn writes it.
+    assert [request["path"] for request in api.requests] == [
+        "/v1/conversation/turn",
+        "/v1/augmentation",
+    ]
+
+
+def test_both_calls_carry_the_same_conversation(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    sent = bodies(api)
+    turn_messages = sent["/v1/conversation/turn"]["messages"]
+    assert [
+        {"content": message["content"], "role": message["role"]}
+        for message in turn_messages
+    ] == sent["/v1/augmentation"]["conversation"]["messages"]
+
+
+def test_the_turn_types_every_message(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    # type is nullable inbound but GET /v1/compaction requires a string coming
+    # back out, so a null here 500s compaction later.
+    for message in bodies(api)["/v1/conversation/turn"]["messages"]:
+        assert message["type"] == "text"
+
+
+def test_excludes_tool_output_and_thinking(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    body = str(bodies(api)["/v1/augmentation"])
+    assert "sk-secret" not in body
+    assert "in a hurry" not in body
+
+
+def test_renders_a_tool_call_as_its_name(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    assert "Noted.\n[tool: Bash]" in contents(api)
+    assert "cat .env" not in str(bodies(api)["/v1/augmentation"])
+
+
+def test_keeps_the_prompt_and_the_reply(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    assert contents(api) == [
+        "remember that I prefer tabs",
+        "Noted.\n[tool: Bash]",
+        "Done.",
+    ]
+
+
+def test_roles_come_from_the_row_type(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    messages = bodies(api)["/v1/conversation/turn"]["messages"]
+    assert [message["role"] for message in messages] == [
+        "user",
+        "assistant",
+        "assistant",
+    ]
+
+
+def test_appends_the_reply_the_transcript_has_not_flushed_yet(
+    api, run_stop, transcript
+):
+    # Stop fires before Claude Code writes the closing assistant rows, so a real
+    # turn's transcript usually ends at the user's prompt.
+    rows = [user(text("remember that I prefer tabs"))]
+
+    run_stop(transcript(rows), last_assistant_message="Noted, I'll remember that.")
+
+    assert contents(api) == [
+        "remember that I prefer tabs",
+        "Noted, I'll remember that.",
+    ]
+
+
+def test_does_not_duplicate_a_reply_already_in_the_transcript(
+    api, run_stop, transcript
+):
+    rows = [user(text("hello")), assistant(text("Noted."))]
+
+    run_stop(transcript(rows), last_assistant_message="Noted.")
+
+    assert contents(api) == ["hello", "Noted."]
+
+
+def test_captures_the_reply_when_the_transcript_is_missing(api, run_stop, tmp_path):
+    result = run_stop(
+        str(tmp_path / "gone.jsonl"),
+        last_assistant_message="a reply with no transcript",
+    )
+
+    assert result.returncode == 0
+    assert api.requests == []
+
+
+def test_reads_string_shaped_content(api, run_stop, transcript):
+    rows = [
+        {"type": "user", "promptId": PROMPT_ID, "message": {"content": "plain string"}},
+        assistant(text("ok")),
+    ]
+
+    run_stop(transcript(rows))
+
+    assert contents(api) == ["plain string", "ok"]
+
+
+def test_sends_only_the_current_turn(api, run_stop, transcript):
+    run_stop(transcript(turn(OTHER_PROMPT_ID, "an earlier prompt") + turn()))
+
+    assert "an earlier prompt" not in contents(api)
+    assert "remember that I prefer tabs" in contents(api)
+
+
+def test_a_turn_that_arrives_while_capturing_is_left_alone(api, run_stop, transcript):
+    # The half the test above missed. Capture runs async, so the next prompt can
+    # be written to the transcript before this hook has finished reading it --
+    # and only a later turn exercises the closing edge of the window.
+    run_stop(transcript(turn() + turn(OTHER_PROMPT_ID, "a later prompt")))
+
+    assert "a later prompt" not in contents(api)
+    assert "remember that I prefer tabs" in contents(api)
+
+
+def test_skips_sidechain_meta_and_compact_rows(api, run_stop, transcript):
+    rows = [
+        user(text("the real prompt")),
+        user(text("subagent chatter"), isSidechain=True),
+        user(text("system injected"), isMeta=True),
+        user(text("previous summary"), isCompactSummary=True),
+        assistant(text("ok")),
+    ]
+
+    run_stop(transcript(rows))
+
+    assert contents(api) == ["the real prompt", "ok"]
+
+
+def test_ignores_non_conversation_rows(api, run_stop, transcript):
+    rows = [
+        user(text("the real prompt")),
+        {"type": "ai-title", "title": "a title"},
+        {"type": "queue-operation", "operation": "enqueue"},
+        {"type": "attachment", "content": "attached"},
+        {"type": "file-history-snapshot", "snapshot": {}},
+        {"type": "last-prompt", "prompt": "the real prompt"},
+        {"type": "system", "subtype": "stop_hook_summary", "content": "summary"},
+        assistant(text("ok")),
+    ]
+
+    run_stop(transcript(rows))
+
+    assert contents(api) == ["the real prompt", "ok"]
+
+
+def test_sends_attribution_and_the_model(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    attribution = {"entity": {"id": "tester"}}
+    assert bodies(api)["/v1/conversation/turn"]["attribution"] == attribution
+    assert bodies(api)["/v1/augmentation"]["meta"] == {
+        "attribution": attribution,
+        "llm": {"model": {"provider": "anthropic", "version": "claude-opus-5"}},
+        "platform": {"provider": "claude-code"},
+    }
+
+
+def test_sends_both_auth_headers(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    for request in api.requests:
+        assert request["headers"]["Authorization"] == "Bearer id_test_acme_abcdefgh"
+        assert request["headers"]["X-Memori-Api-Key"] == "test-client-key"
+
+
+def test_injects_nothing(api, run_stop, transcript):
+    result = run_stop(transcript(turn()))
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+
+
+def test_an_unknown_prompt_id_sends_nothing(api, run_stop, transcript):
+    result = run_stop(transcript(turn()), prompt_id="no-such-prompt")
+
+    assert result.returncode == 0
+    assert api.requests == []
+
+
+def test_a_turn_held_open_by_another_stop_hook_is_not_captured(
+    api, run_stop, transcript
+):
+    # Stop fires again when that hook finally lets go, carrying the whole turn.
+    # Capturing now would send the first half of it twice.
+    rows = [
+        {
+            "type": "user",
+            "promptId": "p1",
+            "message": {"content": [{"type": "text", "text": "hello"}]},
+        }
+    ]
+
+    run_stop(transcript(rows), "p1", stop_hook_active=True)
+
+    assert api.requests == []
+
+
+def test_a_stop_with_no_prompt_id_says_so(api, run_stop, transcript):
+    # Without it the turn cannot be told apart from the rest of the transcript,
+    # and capture would be a silent no-op forever.
+    result = run_stop(transcript([]), None)
+
+    assert result.returncode == 0
+    assert api.requests == []
+    assert "prompt_id" in result.stderr
+    assert "v2.1.196" in result.stderr
+
+
+def test_a_turn_with_no_text_sends_nothing(api, run_stop, transcript):
+    rows = [user({"type": "tool_result", "content": "only tool output"})]
+
+    result = run_stop(transcript(rows))
+
+    assert result.returncode == 0
+    assert api.requests == []
+
+
+def test_survives_a_partially_written_transcript(api, run_stop, transcript):
+    path = transcript(turn(), trailing='{"type": "assistant", "mess')
+
+    result = run_stop(path)
+
+    assert result.returncode == 0
+    assert contents(api) == [
+        "remember that I prefer tabs",
+        "Noted.\n[tool: Bash]",
+        "Done.",
+    ]
+
+
+def test_survives_a_missing_transcript(api, run_stop, tmp_path):
+    result = run_stop(str(tmp_path / "does-not-exist.jsonl"))
+
+    assert result.returncode == 0
+    assert api.requests == []
+
+
+def test_survives_a_dead_server(run_stop, transcript):
+    result = run_stop(transcript(turn()), env={"MEMORI_API_URL": "http://127.0.0.1:1"})
+
+    assert result.returncode == 0
+
+
+def test_survives_missing_credentials(api, run_stop, transcript):
+    result = run_stop(transcript(turn()), env={"MEMORI_IDENTITY_TOKEN": ""})
+
+    assert result.returncode == 0
+    assert api.requests == []

@@ -1,0 +1,349 @@
+# Setting up Memori for Claude Code
+
+From nothing to a working memory loop. Every command here has been run against a
+live install.
+
+## 1. What you need first
+
+**A Memori server.** The plugin talks to `/v1/recall`, `/v1/conversation/turn`,
+`/v1/augmentation` and `/v1/compaction`. Point it at whichever deployment you
+use — Memori's hosted service, or your own instance.
+
+**An identity token** (starts with `id_`, ties memories to you and is what the
+server authenticates) and **a client API key** (the deployment's shared key, sent
+as the `X-Memori-API-Key` header). Both come from whoever administers your Memori
+deployment.
+
+If you are running the backend yourself from a checkout of `MemoriLabs/backend`,
+`./dev start` brings up a local server and `./dev setup account` creates an
+identity and a key, writing both to `.cache/local-account.env`:
+
+```bash
+./dev setup account
+grep -E "MEMORI_(IDENTITY_TOKEN|API_HEADER_VALUE|API_URL)" .cache/local-account.env
+```
+
+## 2. Install
+
+```bash
+claude plugin marketplace add MemoriLabs/integrations
+claude plugin install memori@memorilabs
+claude plugin enable memori@memorilabs
+```
+
+`MemoriLabs/integrations` is a monorepo of Memori integrations. If you would
+rather not have all of it on disk, limit the checkout:
+
+```bash
+claude plugin marketplace add MemoriLabs/integrations \
+  --sparse .claude-plugin claude
+```
+
+**It installs disabled**, and that is deliberate: every prompt and reply goes to
+a server the moment it is on, so switching it on should be a thing you did on
+purpose. Nothing happens until you do.
+
+You can set configuration in the install step, which is the whole setup in one
+go:
+
+```bash
+claude plugin install memori@memorilabs \
+  --config identity_token=id_your_token_here \
+  --config api_header_value=your-client-key \
+  --config api_url=http://localhost:8000 \
+  --config entity_id=your-name
+```
+
+Check it landed:
+
+```bash
+claude plugin list
+```
+
+```
+Installed plugins:
+
+  ❯ memori@memorilabs
+    Version: 0.1.0
+    Scope: user
+    Status: ✔ enabled
+```
+
+> **Installing copies the plugin.** The files are copied into
+> `~/.claude/plugins/cache/memorilabs/memori/<version>/`, and that copy is what
+> runs — not the marketplace checkout.
+>
+> That means **editing a checkout does not change an installed plugin**.
+> Measured: an edit does not reach the cache, and `marketplace update` does not
+> fetch it either, because the install is pinned to the version in the manifest.
+> To pick up changes, bump `version` in `.claude-plugin/plugin.json`, or
+> reinstall. To work on the plugin without any of that, see below.
+>
+> If you added the marketplace from a **local path** rather than from GitHub, the
+> entry keeps that path — so moving or deleting the directory breaks the plugin
+> with `failed to load: cache-miss`. Re-add the marketplace from the new
+> location.
+
+### Per-project instead of everywhere
+
+Install with `--scope project`, or enable it in that project's
+`.claude/settings.json`:
+
+```json
+{
+  "enabledPlugins": ["memori@memorilabs"]
+}
+```
+
+### Working on the plugin
+
+`--plugin-dir` loads it straight off disk with no install and no cache, so your
+edits are live in the next session. Because the manifest ships
+`defaultEnabled: false`, you also have to enable it explicitly:
+
+```bash
+git clone https://github.com/MemoriLabs/integrations.git
+cd integrations/claude
+
+echo '{"enabledPlugins": ["memori"]}' > /tmp/dev-settings.json
+claude --plugin-dir . --settings /tmp/dev-settings.json
+```
+
+This is the loop to use while developing. Note the plugin is named `memori`
+here, without the `@memorilabs` suffix — there is no marketplace involved.
+
+## 3. Configure
+
+Five settings. The first three are required, and the hooks do nothing at all
+until all three are set.
+
+| Setting | Purpose | Default |
+|---|---|---|
+| `identity_token` | Your Memori identity, sent as the bearer token | — |
+| `api_header_value` | Client API key for the deployment | — |
+| `entity_id` | Who the memories are *about* | — |
+| `api_url` | Where Memori lives | `http://localhost:8000` |
+| `debug` | Log hook activity to stderr | off |
+
+There is one way to set them, and it depends on which of these you are.
+
+### If you use the plugin
+
+`--config` at install, or `/plugin configure memori@memorilabs` inside Claude
+Code to change one later:
+
+```bash
+claude plugin install memori@memorilabs \
+  --config identity_token=id_your_token_here \
+  --config api_header_value=your-client-key \
+  --config api_url=https://memori.your-company.com \
+  --config entity_id=your-name
+```
+
+This is the path to use. Claude Code prompts for anything you leave out, and
+keeps `identity_token` and `api_header_value` in the system keychain rather than
+in a file on disk.
+
+### If you are working on the plugin, or running CI
+
+`MEMORI_*` environment variables:
+
+```bash
+export MEMORI_API_URL=http://localhost:8000
+export MEMORI_IDENTITY_TOKEN=id_your_token_here
+export MEMORI_API_HEADER_VALUE=your-client-key
+export MEMORI_ENTITY_ID=your-name
+```
+
+If you are running the backend locally, `./dev setup account` writes the first
+three into `.cache/local-account.env`, so `set -a; source
+.cache/local-account.env; set +a` gets you most of the way — it does not write
+`MEMORI_ENTITY_ID`, which you set yourself.
+
+Each setting's variable is its name in capitals: `MEMORI_API_URL`,
+`MEMORI_IDENTITY_TOKEN`, `MEMORI_API_HEADER_VALUE`, `MEMORI_ENTITY_ID`,
+`MEMORI_DEBUG`. **These outrank the installed plugin's own configuration**, which
+is the point — you can aim a working install at a local server for one shell
+without uninstalling anything. You can also put them in the `env` block of your
+own `~/.claude/settings.json` if you want them to persist.
+
+### One place they can never come from
+
+**A project's `.claude/settings.json` is refused on purpose.** A repository can
+commit that file, and Claude Code merges its `env` block into every hook process
+before the hook gets a say — so a repo you cloned could otherwise point capture
+at a server of its choosing, and nothing in the session would look wrong. Claude
+Code draws the same line for its own plugin config, which it stopped reading from
+project settings in v2.1.207.
+
+Everything except `debug` is refused that way, and naming the setting is enough
+to refuse it — the value is never even looked at. `--check` says what it ignored,
+and so does the hook, on stderr:
+
+```
+Ignored from this project's .claude/settings.json: api_url
+  A repository can commit that file, so it does not get to say where
+  your conversation is sent or what authenticates it. Set these in
+  ~/.claude/settings.json instead, or configure the plugin.
+```
+
+If you genuinely want a different Memori per project, install with
+`--scope project` and configure it per machine.
+
+**`entity_id` is the setting people get wrong.** It is what a captured turn is
+attributed to, and a turn sent without one is accepted and then produces no
+memories — capture looks like it worked and nothing is ever recalled. That is
+why it is required rather than defaulted. Use the same value everywhere you talk
+to Memori: the SDK, the gateway, this plugin.
+
+Note that it is not an access boundary. Memories written into a pool are
+recalled by anyone whose identity can read that pool, whatever entity they ask
+as. `identity_token` and the pool's access control are what separate people;
+`entity_id` says who a memory is about.
+
+## 4. Verify before you open a session
+
+```bash
+memori-hook --check
+```
+
+```
+Memori for Claude Code 0.1.0
+
+Configuration a hook would see
+  api url     http://localhost:8000        (settings.json)
+  entity id   your-name                    (settings.json)
+  identity    id_your_toke...              (settings.json)
+  client key  set                          (settings.json)
+
+Calling /v1/recall ...
+  OK, 8 memories returned.
+
+The endpoints capture and compaction use ...
+  /v1/compaction          OK
+  /v1/conversation/turn   reachable, credentials accepted
+  /v1/augmentation        reachable, credentials accepted
+```
+
+Each line says where the value came from, because that is the part that trips
+people up — the `env` block in `~/.claude/settings.json` outranks your shell, so
+a terminal can report one entity while the real hook uses another.
+
+The check resolves configuration exactly as a hook does, and writes nothing. The
+three endpoints below recall are reached with a body the server is certain to
+refuse, which proves the route is there and the credentials were accepted without
+creating anything. They are checked because **recall working proves nothing about
+capture** — an identity that can read but not write leaves memory looking fine
+while nothing new is ever recorded.
+
+`0 memories returned` on a fresh install is correct: nothing has been recorded
+yet.
+
+Inside a session you do not need the path: `bin/` is on the Bash tool's `PATH`
+while the plugin is enabled, so `memori-hook --check` works bare — or just ask,
+and the `/memori:check` skill runs it and reads the result back to you.
+
+## 5. Use it
+
+```bash
+claude
+```
+
+That's all. Recall runs before each prompt, capture runs when each turn ends.
+Nothing is announced — if it is working you should mostly not notice it.
+
+To confirm it is running:
+
+```bash
+claude --debug-file /tmp/claude.log
+grep -c memori_context /tmp/claude.log     # turns that got memories injected
+grep -o "\[memori\][^\"]*" /tmp/claude.log # hook activity, needs debug on
+```
+
+## 6. When something looks wrong
+
+**Nothing is being recalled.** In order of likelihood:
+
+1. Nothing has been recorded on that subject yet.
+2. The turns it should have come from were captured without an `entity_id`, so
+   no memories were made from them. Run `--check` and look at the entity line.
+3. The memory was already delivered earlier in this Memori session — the server
+   will not send the same memory twice within about 30 minutes. Wait it out, or
+   ask something different.
+4. Your identity has no read access to the pool the memories live in.
+
+**Nothing is being remembered.** Run `--check` first: it reaches
+`/v1/conversation/turn` and `/v1/augmentation` as well as recall, so it tells
+you whether the turn could have arrived at all. If those are fine, extraction
+only keeps things worth keeping — questions usually produce nothing, while
+stated facts, preferences and constraints usually produce something. Check the
+turn arrived:
+
+```sql
+SELECT id, role, LEFT(content, 60) FROM message ORDER BY id DESC LIMIT 10;
+```
+
+Two turns that are never sent, by design: one you interrupted with ESC, and one
+where Claude Code sent no `prompt_id` (it has since v2.1.196; older builds print
+a warning on every turn saying so).
+
+**It feels slow.** Recall is on the critical path of every prompt, with a 5
+second ceiling. If you are running the local embedding model, the first call in
+a fresh server process loads it. Capture is not on any critical path — it runs
+`async`, after the turn has ended.
+
+**Everything went quiet.** The hook never fails loudly by design — a broken
+setup and a working one look identical from inside a session. That is what
+`--check` is for. Three things are the exception, because they never fix
+themselves and would otherwise be invisible: a 401, a `prompt_id` this build of
+Claude Code did not send, and a setting this project tried to supply. All three
+warn even with debug off.
+
+## 7. Updating and removing
+
+To pick up someone else's changes, pull the repo and update:
+
+```bash
+git pull
+claude plugin marketplace update memorilabs   # re-read the manifest
+claude plugin update memori@memorilabs        # restart to apply
+```
+
+**An update only lands if the version changed.** The install is pinned to the
+`version` in `.claude-plugin/plugin.json`, and the cached copy is what runs — so
+a pull that changes code but not the version leaves your install exactly as it
+was. If you need the change without a version bump, reinstall:
+
+```bash
+claude plugin uninstall memori@memorilabs
+claude plugin install memori@memorilabs
+claude plugin enable memori@memorilabs
+```
+
+Removing it entirely:
+
+```bash
+claude plugin uninstall memori@memorilabs
+claude plugin marketplace remove memorilabs
+```
+
+If you moved your clone, the marketplace still points at the old path and the
+plugin fails with `cache-miss`. Remove the marketplace and add it again from the
+new location.
+
+## What the plugin sends
+
+Only conversation: your prompts, Claude's replies, and tool **names** as
+`[tool: Bash]`.
+
+Never tool output, never tool arguments, never Claude's thinking, never subagent
+traffic. Tool results are the bulk of any transcript and the likeliest place for
+a secret to be sitting in a file that was read, so they are excluded wholesale.
+
+Note that **your prompts are sent verbatim**. If you paste a credential into a
+prompt, it reaches Memori as conversation, the same as any other text.
+
+**A turn you interrupt is not sent at all.** `Stop` is what triggers capture, and
+Claude Code does not fire it when you press ESC. Nothing else could pick the turn
+up without the plugin keeping state between sessions, which it does not do. Say
+it again in the next turn if it mattered.
