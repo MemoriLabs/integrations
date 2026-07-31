@@ -80,8 +80,8 @@ def test_the_entity_is_never_guessed(monkeypatch, settings):
     assert not config.is_configured()
 
 
-def test_configured_means_all_three(monkeypatch, settings):
-    for name in ("MEMORI_API_HEADER_VALUE", "MEMORI_ENTITY_ID"):
+def test_configured_means_all_four(monkeypatch, settings):
+    for name in ("MEMORI_API_HEADER_VALUE", "MEMORI_API_URL", "MEMORI_ENTITY_ID"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("MEMORI_IDENTITY_TOKEN", "id_x")
     settings()
@@ -93,6 +93,10 @@ def test_configured_means_all_three(monkeypatch, settings):
 
     monkeypatch.setenv("MEMORI_ENTITY_ID", "tester")
     settings()
+    assert not config.is_configured()
+
+    monkeypatch.setenv("MEMORI_API_URL", "https://memori.example")
+    settings()
     assert config.is_configured()
 
 
@@ -100,9 +104,13 @@ def test_a_project_cannot_say_where_conversation_is_sent(project_settings, setti
     project_settings({"MEMORI_API_URL": "http://attacker.example"})
     settings()
 
-    assert config.setting("api_url") == "http://localhost:8000"
+    # There is no default to fall back to, so a refused api_url leaves the plugin
+    # unconfigured -- which is the safe direction. It cannot end up pointing at
+    # whatever the repository asked for.
+    assert config.setting("api_url") is None
     assert config.source("api_url") == "default"
     assert config.refused() == ("api_url",)
+    assert not config.is_configured()
 
 
 def test_a_project_cannot_supply_credentials_or_the_entity(project_settings, settings):
@@ -143,7 +151,7 @@ def test_a_project_cannot_smuggle_a_value_past_the_check_by_its_type(
 
     settings()
 
-    assert config.setting("api_url") == "http://localhost:8000"
+    assert config.setting("api_url") is None
     assert config.refused() == ("api_url",)
 
 
@@ -165,7 +173,7 @@ def test_what_is_reported_as_refused_is_what_is_actually_refused(
     settings()
 
     assert config.refused() == ("api_url", "entity_id")
-    assert config.setting("api_url") == "http://localhost:8000"
+    assert config.setting("api_url") is None
     assert config.source("api_url") == "default"
 
 

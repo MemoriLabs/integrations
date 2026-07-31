@@ -29,8 +29,8 @@
     "api_url": {
       "title": "API URL",
       "type": "string",
-      "description": "Base URL of the Memori API.",
-      "default": "http://localhost:8000"
+      "description": "Base URL of the Memori API for your deployment.",
+      "required": true
     },
     "entity_id": {
       "title": "Entity ID",

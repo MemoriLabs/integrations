@@ -1,7 +1,7 @@
 """
 Turning Claude Code's transcript into the messages Memori stores.
 
-A transcript is JSONL and holds far more than conversation -- attachments,
+A transcript is JSONL and holds far more than conversation: attachments,
 titles, queue operations, file-history snapshots. Only `user` and `assistant`
 rows are conversation, and only some of their content blocks may be sent.
 """
@@ -71,7 +71,7 @@ def rows_for_turn(path, prompt_id):
 
     A generator, so no caller ever holds the raw rows. A single turn can contain
     a tool result of arbitrary size, and those are the rows we are about to throw
-    away -- reading them one at a time keeps the peak cost the largest row rather
+    away. Reading them one at a time keeps the peak cost the largest row rather
     than the sum of them.
     """
 
@@ -94,7 +94,7 @@ def rows_for_turn(path, prompt_id):
             elif carried and carried != prompt_id:
                 # And the next turn's prompt closes it. Stop runs async, so a
                 # queued prompt can land in the file while this hook is still
-                # reading -- without this the turns merge and the next one is
+                # reading. Without this the turns merge and the next one is
                 # captured twice. Rows that carry no promptId at all (assistant
                 # rows, attachments) belong to the turn already open.
                 break

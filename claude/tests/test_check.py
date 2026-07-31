@@ -213,7 +213,7 @@ def test_an_unauthorized_hook_warns_even_with_debug_off(api, run_hook, prompt_pa
     assert result.returncode == 0
     assert result.stdout == ""
     assert "unauthorized" in result.stderr.lower()
-    assert "--check" in result.stderr
+    assert "check" in result.stderr.lower()
 
 
 def test_says_what_a_project_tried_to_configure(api, project_settings, run_check):

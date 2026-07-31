@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Memori for Claude Code -- diagnostic and manual entry point.
+Memori for Claude Code: diagnostic and manual entry point.
 
     memori-hook --check     report the configuration a hook would see, and
                             prove it works against a live server

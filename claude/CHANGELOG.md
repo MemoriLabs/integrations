@@ -12,7 +12,7 @@ First release. Three hooks, two skills, and standard library Python only.
   to your username bought a plugin that looked configured and never recalled
   anything.
 - `UserPromptSubmit` recalls from Memori and injects what it knows.
-- `Stop` sends the finished turn to be remembered, asynchronously.
+- `Stop` sends the finished turn to be remembered.
 - `SessionStart` rebuilds the session's context after a compaction.
 - Only conversation is sent: prompts, replies, and tool **names**. Never tool
   output, tool arguments, thinking, or subagent traffic.

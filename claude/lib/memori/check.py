@@ -1,8 +1,8 @@
 """
 `--check`: what a hook would see, and whether it works.
 
-A misconfigured plugin is otherwise silent -- hooks never fail loudly, so a
-broken setup and a working one look identical from inside a session.
+Hooks never fail loudly, so a misconfigured plugin and a working one look
+identical from inside a session.
 """
 
 import urllib.error
@@ -32,13 +32,17 @@ ENDPOINTS = (
 
 
 def redacted(token):
-    # Enough to tell two identities apart, which is what this line is for.
+    # Enough to tell two identities apart.
     return f"{token[:12]}..." if token else "MISSING"
 
 
 def print_configuration():
     rows = (
-        ("api url", config.setting("api_url"), config.source("api_url")),
+        (
+            "api url",
+            config.setting("api_url") or "MISSING",
+            config.source("api_url"),
+        ),
         (
             "entity id",
             config.setting("entity_id") or "MISSING",
@@ -72,9 +76,9 @@ def print_refused():
 
 
 def print_unconfigured():
-    print("\nNot configured. Set MEMORI_IDENTITY_TOKEN, MEMORI_API_HEADER_VALUE")
-    print("and MEMORI_ENTITY_ID, in your shell or in the env block of")
-    print("~/.claude/settings.json, or configure the plugin in Claude Code.")
+    print("\nNot configured. Set MEMORI_API_URL, MEMORI_IDENTITY_TOKEN,")
+    print("MEMORI_API_HEADER_VALUE and MEMORI_ENTITY_ID, in your shell or in the")
+    print("env block of ~/.claude/settings.json, or configure the plugin.")
 
 
 def print_empty_result():
@@ -87,7 +91,7 @@ def print_empty_result():
 
 
 def reach(path, body, timeout):
-    """One endpoint, without writing anything, as a line of prose."""
+    """Reach one endpoint without writing anything, and describe the result."""
 
     try:
         api.request(path, body=body, timeout=timeout)
@@ -126,7 +130,7 @@ def probe():
 
 
 def probe_the_rest():
-    """Recall working proves nothing about capture, which is the silent half."""
+    """Recall working does not establish that capture works."""
 
     print("\nThe endpoints capture and compaction use ...")
 

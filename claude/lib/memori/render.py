@@ -1,9 +1,9 @@
 """
 The two blocks the plugin injects into Claude's context.
 
-Both are wrapped in a tag and opened with a header telling Claude how to treat
-what follows. `skills/memory/SKILL.md` says the same things at more length; these
-headers are the version that travels with the content.
+Each is wrapped in a tag and opened with a header stating how to treat what
+follows. `skills/memory/SKILL.md` covers the same ground; these headers are the
+copy that travels with the content.
 """
 
 from memori import api
@@ -13,8 +13,8 @@ CONTEXT_TAG = "memori_context"
 COMPACTION_TAG = "memori_compaction"
 
 # Claude Code caps injected context at 10,000 characters. Past that it writes the
-# block to a file and injects the path instead, which the model then has to go
-# and open -- so an oversized block does not fail, it quietly stops being memory.
+# block to a file and injects the path instead, so an oversized block stops being
+# memory rather than failing.
 LIMIT = 10000
 
 CONTEXT_HEADER = (
@@ -34,22 +34,18 @@ COMPACTION_HEADER = (
 
 def neutered(text):
     """
-    Stop the body from closing the block it is being placed inside.
+    Rewrite the block delimiters in body text so it cannot close the block it
+    sits inside.
 
-    Everything in a block comes back from the server, and memory content is
-    attacker-influenceable: whatever a user pastes into a prompt can become a
-    memory, and memories are injected verbatim into later sessions. A memory
-    carrying `</memori_context>` ends the block early, and whatever follows it
-    reads as though it arrived from outside -- a fake system turn, say.
+    Memory content is attacker-influenceable: anything pasted into a prompt can
+    become a memory, and memories are injected verbatim into later sessions. A
+    memory containing `</memori_context>` ends the block early, and whatever
+    follows it reads as though it arrived from outside the block.
 
-    Measured, not hypothetical: a planted memory did exactly that, putting the
-    first closing tag a quarter of the way through the block. The model spotted
-    it and refused, which is the right outcome but the wrong thing to depend on.
-
-    The delimiters are rewritten rather than the text dropped, so a memory that
-    legitimately mentions the tag stays readable instead of being silently
-    truncated. The replacements are the same length as what they replace, so
-    the trimming in `fitted` and `assembled` measures the same either way.
+    The delimiters are rewritten rather than removed, so a memory that
+    legitimately mentions the tag stays readable. The replacements are the same
+    length as what they replace, so `fitted` and `assembled` measure the same
+    either way.
     """
 
     for tag in (CONTEXT_TAG, COMPACTION_TAG):
@@ -73,11 +69,11 @@ def bullets(values):
 
 def qualifiers(memory):
     """
-    What the memory is, beyond its content: where it came from, and when.
+    Where a memory came from, and when.
 
-    Recall returns content, context and a creation date for every memory, and all
-    three are meant to reach the model. Context is what stops a bare claim from
-    being read as a standing instruction.
+    Recall returns content, context and a creation date for every memory, and
+    all three reach the model. Context stops a bare claim from reading as a
+    standing instruction.
     """
 
     parts = []
@@ -99,8 +95,8 @@ def measured(text):
 
     The cap is applied in JavaScript, where a string's length is its count of
     UTF-16 code units. Python counts code points, so anything outside the basic
-    plane -- an emoji, and plenty of CJK punctuation -- is one here and two
-    there. Counting the way the enforcer counts is the only way to sit under it.
+    plane, such as an emoji or much CJK punctuation, counts as one here and two
+    there.
     """
 
     return len(text.encode("utf-16-le")) // 2
@@ -108,12 +104,11 @@ def measured(text):
 
 def trimmed(what, count):
     """
-    The line that admits something was dropped.
+    The line stating that content was dropped.
 
-    In-band, because the model is the one that needs to know. A silently short
-    list reads as a complete one: Claude would answer "nothing is recorded about
-    that" from a block that had the answer trimmed off it, which is the exact
-    failure `skills/memory/SKILL.md` spends its length trying to prevent.
+    It goes inside the block because the model is what needs to know. A silently
+    shortened list reads as a complete one, so Claude would answer "nothing is
+    recorded about that" from a block the answer had been trimmed out of.
     """
 
     return f"[trimmed by memori: {count} {what} dropped to fit the context limit]"
@@ -121,10 +116,10 @@ def trimmed(what, count):
 
 def fitted(lines):
     """
-    Drop memories from the end until the block fits inside Claude Code's cap.
+    Drop memories from the end until the block fits under Claude Code's cap.
 
-    Recall returns them ranked, so the tail is the least costly thing to lose.
-    Losing the tail beats going over: over the cap, none of it is memory any more.
+    Recall returns them ranked, so the tail is the cheapest part to lose. Over
+    the cap, none of it reaches the model as memory.
     """
 
     kept = list(lines)
@@ -184,12 +179,10 @@ def assembled(chunks):
     """
     Every chunk that fits, dropping the cheapest first.
 
-    Unlike recall, a compaction block is not a ranked list -- it is a briefing
-    whose parts are worth wildly different amounts. Trimming the tail would throw
-    away the continuation, which is the entire reason the block exists. So each
-    part carries what it costs to lose and the cheapest goes first, which is the
-    same shape Anthropic's own security-guidance plugin uses on an over-cap diff:
-    keep the subset that matters rather than keep nothing.
+    A compaction block is not a ranked list; its parts are worth different
+    amounts. Trimming the tail would drop the continuation, which is the reason
+    the block exists. Each part carries what it costs to lose, and the cheapest
+    goes first.
     """
 
     kept = [chunk for chunk in chunks if chunk[1].strip()]
@@ -214,9 +207,9 @@ def assembled(chunks):
 def compaction(data):
     state = data.get("state") or {}
 
-    # In display order, each with what a resumed session can least afford to lose
-    # it. The continuation is the point of the whole block; the standing orders
-    # are what stop a session breaking a rule it can no longer see. A timeline is
+    # In display order, each weighted by what a resumed session can least afford
+    # to lose. The continuation is the point of the block; the standing orders
+    # stop a session breaking a rule it can no longer see. The timeline is
     # narrative, and the workspace and environment can be read back off the repo.
     chunks = (
         (5, listing("Standing orders", data.get("standing_orders"))),
@@ -229,6 +222,6 @@ def compaction(data):
         (6, continuing(data.get("continuation") or {})),
     )
 
-    # The messages the endpoint also returns are deliberately dropped: Claude
-    # Code's own compact summary already covers the conversation itself.
+    # The messages the endpoint also returns are dropped: Claude Code's own
+    # compact summary already covers the conversation itself.
     return assembled(chunks)

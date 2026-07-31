@@ -7,7 +7,9 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py"
+            ],
             "timeout": 30
           }
         ]
@@ -19,9 +21,10 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"],
-            "async": true,
-            "timeout": 15
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"
+            ],
+            "timeout": 5
           }
         ]
       }
@@ -32,7 +35,9 @@
           {
             "type": "command",
             "command": "python3",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/user_prompt_submit.py"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/user_prompt_submit.py"
+            ],
             "timeout": 10
           }
         ]

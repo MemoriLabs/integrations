@@ -8,19 +8,19 @@ was nothing to recall, nothing to capture, or nothing to say.
 from memori import api, config, render, transcript
 
 NO_CREDENTIALS = (
-    "not configured; set MEMORI_IDENTITY_TOKEN, MEMORI_API_HEADER_VALUE and "
-    "MEMORI_ENTITY_ID, or configure the plugin"
+    "not configured; set MEMORI_API_URL, MEMORI_IDENTITY_TOKEN, "
+    "MEMORI_API_HEADER_VALUE and MEMORI_ENTITY_ID, or configure the plugin"
 )
 
 NO_PROMPT_ID = (
     "this Stop carried no prompt_id, so the turn cannot be told apart from the "
     "rest of the transcript and nothing is being remembered. Claude Code has "
-    "sent one since v2.1.196 -- upgrade."
+    "sent one since v2.1.196; upgrade."
 )
 
 REFUSED = (
     "this project's .claude/settings.json sets {names} for Memori. A repository "
-    "does not get to decide that, so it was ignored -- set it in "
+    "does not get to decide that, so it was ignored. Set it in "
     "~/.claude/settings.json, or configure the plugin."
 )
 
@@ -29,7 +29,7 @@ def on_user_prompt_submit(payload):
     """Recall what Memori knows about the prompt and inject it."""
 
     # The hooks reference documents user_prompt, but this build sends prompt.
-    # Measured 2026-07-28; keep the fallback for builds that differ.
+    # The fallback covers builds that differ.
     query = (payload.get("prompt") or payload.get("user_prompt") or "").strip()
     if not query:
         return None
@@ -58,9 +58,9 @@ def on_stop(payload):
     if not payload.get("transcript_path"):
         return None
 
-    # prompt_id is the only thing that marks off this turn from the rest of the
-    # transcript, and there is no second way to derive it. Without one capture is
-    # a silent no-op, which is the one failure this plugin must not have quietly.
+    # prompt_id is the only marker separating this turn from the rest of the
+    # transcript, and there is no second way to derive it. Without one, capture
+    # becomes a no-op that would otherwise go unreported.
     if not payload.get("prompt_id"):
         api.warn(NO_PROMPT_ID)
         return None
@@ -84,8 +84,8 @@ def on_session_start(payload):
     """
     After a compaction, rebuild what the session knew.
 
-    Only compaction. A session that is merely starting needs nothing injected --
-    the first prompt recalls on its own, before the model sees it.
+    Only compaction. A session that is merely starting needs nothing injected,
+    because the first prompt recalls on its own before the model sees it.
     """
 
     if payload.get("source") != "compact":

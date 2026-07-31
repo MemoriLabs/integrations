@@ -18,8 +18,8 @@ turn ends ──▶  Stop  ──▶  POST /v1/conversation/turn ──▶ POST 
 
 When Claude Code compacts the conversation, the injected memories fall out of
 context with everything else. `SessionStart` then asks Memori for a summary of
-what the session had established — standing orders, environment, open loops,
-where you left off — and injects that, so the thread survives the compaction.
+what the session had established: standing orders, environment, open loops, and
+where it left off. That is injected so the thread survives the compaction.
 
 A bundled skill tells Claude how to read the injected blocks: use them as things
 it already knows rather than announcing a lookup, never claim to remember
@@ -34,28 +34,31 @@ standard library Python, with no state kept on disk.
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs \
+  --config api_url=https://memori.example.com \
   --config identity_token=id_your_token_here \
   --config api_header_value=your-client-key \
-  --config entity_id=your-name
+  --config entity_id=jane-doe
 claude plugin enable memori@memorilabs
-memori-hook --check
 ```
 
-It installs disabled — everything here goes to a server the moment it is on, so
-turning it on should be deliberate. `--check` then reports the configuration a
-hook would see and reaches every endpoint the plugin uses, writing nothing.
+It installs disabled. Everything here goes to a server the moment it is enabled,
+so enabling it is a separate step.
 
-**[SETUP.md](SETUP.md) is the full guide** — prerequisites, configuring it as a
-user and as a developer, per-project installs, and what to do when nothing is
-being recalled or remembered.
+To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
+skill runs the diagnostic and reports the result: the configuration a hook would
+see, and whether every endpoint the plugin uses is reachable. It writes nothing.
 
-Two things worth knowing before you start:
+**[SETUP.md](SETUP.md) is the full guide**: prerequisites, configuration for
+users and developers, per-project installs, and what to do when nothing is being
+recalled or remembered.
+
+Two constraints to know before starting:
 
 - **`entity_id` is required, and is what a memory is attributed to.** A turn
-  captured without one is accepted by the server and then makes no memories, so
-  the plugin refuses to run until it is set. Use the same value everywhere you
-  talk to Memori. It is not an access boundary — what you can recall is decided
-  by your identity token and the pool it can read.
+  captured without one is accepted by the server and makes no memories, so the
+  plugin refuses to run until it is set. Use the same value in every Memori
+  client. It is not an access boundary: what can be recalled is decided by the
+  identity token and the pool it can read.
 - **A project's `.claude/settings.json` cannot configure Memori.** A repository
   can commit that file and Claude Code merges its `env` block into every hook, so
   anything a workspace supplies is refused and named rather than used.
@@ -67,25 +70,26 @@ Only conversation:
 - your prompts and Claude's replies
 - tool **names**, as `[tool: Bash]`
 
-Never tool output, tool arguments, Claude's thinking, or subagent traffic — tool
-results are the bulk of any transcript and the likeliest place a secret is
-sitting, so they are excluded wholesale rather than scanned.
+Never tool output, tool arguments, Claude's thinking, or subagent traffic. Tool
+results are the bulk of any transcript and the likeliest place a secret sits, so
+they are excluded wholesale rather than scanned.
 
 Each turn is scoped by the `prompt_id` Claude Code provides, so a turn is sent
-once and nothing is kept on disk. Capture runs `async`, off the end of the turn,
-so nothing waits on it. **A turn you interrupt is not remembered** — `Stop` does
-not fire on ESC, and catching it later would mean keeping state between sessions.
+once and nothing is kept on disk. Capture is two inserts and runs at the end of
+the turn, adding a few tens of milliseconds; the extraction it queues happens in
+a worker, so nothing waits for that.
+**An interrupted turn is not remembered**: `Stop` does not fire on ESC, and
+catching it later would mean keeping state between sessions.
 
 ## Safety
 
 The hook **never exits non-zero**. A dead server, missing credentials, a corrupt
-transcript, or a slow response all degrade to "no memories" — never to a lost
-prompt or a turn that will not end. That is deliberate: on `UserPromptSubmit` a
-blocking exit erases what you typed, and on `Stop` it forbids Claude from
-stopping.
+transcript, or a slow response all degrade to "no memories", never to a lost
+prompt or a turn that will not end. On `UserPromptSubmit` a blocking exit erases
+the typed prompt, and on `Stop` it forbids Claude from stopping.
 
-Everything is best-effort and out of the way. If Memori is down you should not
-notice.
+Everything is best-effort. A Memori outage should not be noticeable in a
+session.
 
 ## Development
 
@@ -104,7 +108,7 @@ catalogues every integration in it; `plugin.json` belongs to this directory.
 `plugin.json` on its own.
 
 `tests/test_manifests.py` covers what the schema cannot: that the wired paths
-exist, that capture stays non-blocking and recall stays blocking, that the
+exist, that capture and recall are wired the way each needs to be, that the
 catalogue points back at this directory, and that its version still matches
 `plugin.json`.
 
@@ -136,27 +140,27 @@ still nothing to install.
 
 `test_lib_*.py` import the library directly and run in milliseconds. The rest
 drive the real scripts as subprocesses against a stdlib HTTP stub, using hook
-payloads captured from a live session in `tests/fixtures/` — that layer covers
+payloads captured from a live session in `tests/fixtures/`. That layer covers
 what only a real process can: exit codes, stdout shape, and the entry points
 `hooks.json` actually calls.
 
-To drive it against a Memori backend, load the plugin from disk and enable it —
-`--plugin-dir` loads it but leaves it off, because the manifest ships
+To drive it against a Memori deployment, load the plugin from disk and enable
+it. `--plugin-dir` loads it but leaves it off, because the manifest ships
 `defaultEnabled: false`:
 
 ```
-export MEMORI_API_URL=http://localhost:8000
+export MEMORI_API_URL=https://memori.example.com
 export MEMORI_IDENTITY_TOKEN=id_your_token_here
 export MEMORI_API_HEADER_VALUE=your-client-key
-export MEMORI_ENTITY_ID=your-name
+export MEMORI_ENTITY_ID=jane-doe
 
 echo '{"enabledPlugins": ["memori"]}' > /tmp/dev-settings.json
 claude --plugin-dir . --settings /tmp/dev-settings.json
 ```
 
-Note that `MEMORI_*` in your shell does **not** win over the `env` block of your
-own `~/.claude/settings.json` — that outranks it. If a dev session is reading the
-wrong server, `memori-hook --check` names the source of every value.
+`MEMORI_*` in the shell does **not** outrank the `env` block of
+`~/.claude/settings.json`. If a dev session is reading the wrong server, the
+diagnostic names the source of every value.
 
 ## License
 

@@ -159,8 +159,14 @@ def test_hooks_use_exec_form():
             assert "args" in handler, event
 
 
-def test_capture_does_not_block_the_end_of_a_turn():
-    assert handlers("Stop")[0]["async"] is True
+def test_capture_runs_synchronously():
+    # An async hook is started and not waited for, so a non-interactive session
+    # exits before it finishes and the turn is never captured. Both endpoints it
+    # calls are plain inserts, measured at about 45ms together, so the turn ends
+    # synchronously instead. The short timeout bounds a slow server: capture is
+    # the thing worth losing there, not the turn.
+    assert "async" not in handlers("Stop")[0]
+    assert handlers("Stop")[0]["timeout"] <= 5
 
 
 def test_recall_still_blocks():

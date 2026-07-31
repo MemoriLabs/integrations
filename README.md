@@ -12,21 +12,23 @@ Claude Code plugin marketplace.
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs \
+  --config api_url=https://memori.example.com \
   --config identity_token=id_your_token_here \
   --config api_header_value=your-client-key \
-  --config entity_id=your-name
+  --config entity_id=jane-doe
 claude plugin enable memori@memorilabs
-memori-hook --check
 ```
 
-It installs **disabled**, on purpose — every prompt and reply goes to a server
-the moment it is on, so turning it on should be deliberate. `--check` then
-reports the configuration a hook would see and reaches every endpoint the
-plugin uses, writing nothing.
+It installs **disabled**. Every prompt and reply goes to a server the moment it
+is enabled, so enabling it is a separate step.
 
-**[claude/SETUP.md](claude/SETUP.md) is the full guide** —
-prerequisites, configuration, per-project installs, and what to do when nothing
-is being recalled or remembered.
+To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
+skill runs the diagnostic and reports the result: the configuration a hook would
+see, and whether every endpoint the plugin uses is reachable. It writes nothing.
+
+**[claude/SETUP.md](claude/SETUP.md) is the full guide**: prerequisites,
+configuration, per-project installs, and what to do when nothing is being
+recalled or remembered.
 
 This is a monorepo, so you can limit what lands on disk:
 
@@ -37,8 +39,8 @@ claude plugin marketplace add MemoriLabs/integrations \
 
 ## Development
 
-Python 3.12, and the same formatting the Memori backend uses — black at 88
-columns, isort with the black profile.
+Python 3.12. Formatting is black at 88 columns and isort with the black profile,
+matching the Memori backend.
 
 ```bash
 pip install pre-commit
@@ -54,7 +56,7 @@ claude plugin validate .                            # the marketplace manifest
 claude plugin validate claude/.claude-plugin/plugin.json
 ```
 
-Run both `validate` calls from the repository root, and in that order — on a
+Run both `validate` calls from the repository root, and in that order. On a
 directory `validate` takes the marketplace manifest if it finds one and stops
 there, so the one-argument form never checks `plugin.json`.
 

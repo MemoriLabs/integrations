@@ -8,7 +8,8 @@ import urllib.request
 
 from memori import config
 
-# Recall sits in front of every prompt, so its budget is the user's patience.
+# Recall runs in front of every prompt, so the budget is how long a user will
+# wait before typing.
 TIMEOUT = 5.0
 
 # Compaction runs an LLM over the session's memories in rolling batches. It
@@ -21,7 +22,7 @@ class SameHostRedirects(urllib.request.HTTPRedirectHandler):
     Refuse a redirect that would carry the credentials to another host.
 
     urllib copies every header onto the redirected request, with no same-origin
-    check -- measured, not assumed: a 302 to a different host arrives holding the
+    check: a 302 to a different host arrives holding the
     identity token and the client key. `requests` strips them here; urllib does
     not. A redirect within the same host is left alone, since that is ordinary
     path or scheme normalisation and the credentials are not going anywhere new.
@@ -60,7 +61,7 @@ def request(path, body=None, timeout=TIMEOUT):
 
     `get` and `post` below are the sugar for the two call sites that know their
     shape; the diagnostic calls this directly, because it walks a table of
-    endpoints where the body -- and so the method -- differs per row.
+    endpoints where the body, and so the method, differs per row.
     """
 
     headers = {
@@ -106,12 +107,12 @@ def warn(message):
 
 
 def report_failure(what, error):
-    """Log every failure; shout about the ones a user has to act on."""
+    """Log every failure, and warn on the ones a user has to act on."""
 
     log(f"{what} failed: {error}")
 
     if isinstance(error, urllib.error.HTTPError) and error.code == 401:
         warn(
             f"{what} was rejected as unauthorized. Check the identity token and "
-            "client API key -- run `memori-hook --check`."
+            "client API key. Run the Memori check for details."
         )

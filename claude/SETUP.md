@@ -1,27 +1,26 @@
 # Setting up Memori for Claude Code
 
-From nothing to a working memory loop. Every command here has been run against a
-live install.
+From nothing to a working memory loop.
 
 ## 1. What you need first
 
-**A Memori server.** The plugin talks to `/v1/recall`, `/v1/conversation/turn`,
-`/v1/augmentation` and `/v1/compaction`. Point it at whichever deployment you
-use — Memori's hosted service, or your own instance.
+Four values. The plugin will not run until it has all four, and it does not
+guess any of them.
 
-**An identity token** (starts with `id_`, ties memories to you and is what the
-server authenticates) and **a client API key** (the deployment's shared key, sent
-as the `X-Memori-API-Key` header). Both come from whoever administers your Memori
-deployment.
+**The API URL** of your Memori deployment. The plugin calls `/v1/recall`,
+`/v1/conversation/turn`, `/v1/augmentation` and `/v1/compaction` beneath it.
 
-If you are running the backend yourself from a checkout of `MemoriLabs/backend`,
-`./dev start` brings up a local server and `./dev setup account` creates an
-identity and a key, writing both to `.cache/local-account.env`:
+**An identity token.** Starts with `id_`. It ties memories to you and is what
+the server authenticates.
 
-```bash
-./dev setup account
-grep -E "MEMORI_(IDENTITY_TOKEN|API_HEADER_VALUE|API_URL)" .cache/local-account.env
-```
+**A client API key.** The deployment's shared key, sent as the
+`X-Memori-API-Key` header.
+
+**An entity id.** A lowercase slug naming who the memories are about, such as
+`jane-doe`. See [entity_id](#entity_id) below before you pick one.
+
+The URL, token and key come from your Memori deployment. Where you get them
+depends on how your organisation runs Memori; ask whoever administers it.
 
 ## 2. Install
 
@@ -30,6 +29,8 @@ claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs
 claude plugin enable memori@memorilabs
 ```
+
+The install prompts for the four values from step 1.
 
 `MemoriLabs/integrations` is a monorepo of Memori integrations. If you would
 rather not have all of it on disk, limit the checkout:
@@ -48,11 +49,13 @@ go:
 
 ```bash
 claude plugin install memori@memorilabs \
+  --config api_url=https://memori.example.com \
   --config identity_token=id_your_token_here \
   --config api_header_value=your-client-key \
-  --config api_url=http://localhost:8000 \
-  --config entity_id=your-name
+  --config entity_id=jane-doe
 ```
+
+Claude Code prompts for any of the four you leave out.
 
 Check it landed:
 
@@ -71,7 +74,7 @@ Installed plugins:
 
 > **Installing copies the plugin.** The files are copied into
 > `~/.claude/plugins/cache/memorilabs/memori/<version>/`, and that copy is what
-> runs — not the marketplace checkout.
+> runs, not the marketplace checkout.
 >
 > That means **editing a checkout does not change an installed plugin**.
 > Measured: an edit does not reach the cache, and `marketplace update` does not
@@ -80,7 +83,7 @@ Installed plugins:
 > reinstall. To work on the plugin without any of that, see below.
 >
 > If you added the marketplace from a **local path** rather than from GitHub, the
-> entry keeps that path — so moving or deleting the directory breaks the plugin
+> entry keeps that path, so moving or deleting the directory breaks the plugin
 > with `failed to load: cache-miss`. Re-add the marketplace from the new
 > location.
 
@@ -110,20 +113,24 @@ claude --plugin-dir . --settings /tmp/dev-settings.json
 ```
 
 This is the loop to use while developing. Note the plugin is named `memori`
-here, without the `@memorilabs` suffix — there is no marketplace involved.
+here, without the `@memorilabs` suffix, because no marketplace is involved.
 
 ## 3. Configure
 
-Five settings. The first three are required, and the hooks do nothing at all
-until all three are set.
+Five settings. The first four are required, and the hooks do nothing until all
+four are set.
 
 | Setting | Purpose | Default |
 |---|---|---|
-| `identity_token` | Your Memori identity, sent as the bearer token | — |
-| `api_header_value` | Client API key for the deployment | — |
-| `entity_id` | Who the memories are *about* | — |
-| `api_url` | Where Memori lives | `http://localhost:8000` |
+| `api_url` | Base URL of your Memori deployment | none |
+| `identity_token` | Your Memori identity, sent as the bearer token | none |
+| `api_header_value` | Client API key for the deployment | none |
+| `entity_id` | Who the memories are *about* | none |
 | `debug` | Log hook activity to stderr | off |
+
+None of the four is defaulted. A wrong value fails silently: the server accepts
+what the plugin sends and no memories come back, which is indistinguishable from
+having nothing recorded yet.
 
 There is one way to set them, and it depends on which of these you are.
 
@@ -134,10 +141,10 @@ Code to change one later:
 
 ```bash
 claude plugin install memori@memorilabs \
+  --config api_url=https://memori.example.com \
   --config identity_token=id_your_token_here \
   --config api_header_value=your-client-key \
-  --config api_url=https://memori.your-company.com \
-  --config entity_id=your-name
+  --config entity_id=jane-doe
 ```
 
 This is the path to use. Claude Code prompts for anything you leave out, and
@@ -149,35 +156,30 @@ in a file on disk.
 `MEMORI_*` environment variables:
 
 ```bash
-export MEMORI_API_URL=http://localhost:8000
+export MEMORI_API_URL=https://memori.example.com
 export MEMORI_IDENTITY_TOKEN=id_your_token_here
 export MEMORI_API_HEADER_VALUE=your-client-key
-export MEMORI_ENTITY_ID=your-name
+export MEMORI_ENTITY_ID=jane-doe
 ```
-
-If you are running the backend locally, `./dev setup account` writes the first
-three into `.cache/local-account.env`, so `set -a; source
-.cache/local-account.env; set +a` gets you most of the way — it does not write
-`MEMORI_ENTITY_ID`, which you set yourself.
 
 Each setting's variable is its name in capitals: `MEMORI_API_URL`,
 `MEMORI_IDENTITY_TOKEN`, `MEMORI_API_HEADER_VALUE`, `MEMORI_ENTITY_ID`,
-`MEMORI_DEBUG`. **These outrank the installed plugin's own configuration**, which
-is the point — you can aim a working install at a local server for one shell
-without uninstalling anything. You can also put them in the `env` block of your
-own `~/.claude/settings.json` if you want them to persist.
+`MEMORI_DEBUG`. **These outrank the installed plugin's own configuration**, so an
+installed plugin can be aimed at a different server for one shell without
+uninstalling it. They can also go in the `env` block of `~/.claude/settings.json`
+to persist.
 
 ### One place they can never come from
 
 **A project's `.claude/settings.json` is refused on purpose.** A repository can
 commit that file, and Claude Code merges its `env` block into every hook process
-before the hook gets a say — so a repo you cloned could otherwise point capture
+before the hook gets a say, so a cloned repository could otherwise point capture
 at a server of its choosing, and nothing in the session would look wrong. Claude
 Code draws the same line for its own plugin config, which it stopped reading from
 project settings in v2.1.207.
 
 Everything except `debug` is refused that way, and naming the setting is enough
-to refuse it — the value is never even looked at. `--check` says what it ignored,
+to refuse it; the value is never inspected. The diagnostic reports what it ignored,
 and so does the hook, on stderr:
 
 ```
@@ -190,29 +192,38 @@ Ignored from this project's .claude/settings.json: api_url
 If you genuinely want a different Memori per project, install with
 `--scope project` and configure it per machine.
 
-**`entity_id` is the setting people get wrong.** It is what a captured turn is
-attributed to, and a turn sent without one is accepted and then produces no
-memories — capture looks like it worked and nothing is ever recalled. That is
-why it is required rather than defaulted. Use the same value everywhere you talk
-to Memori: the SDK, the gateway, this plugin.
+### entity_id
 
-Note that it is not an access boundary. Memories written into a pool are
-recalled by anyone whose identity can read that pool, whatever entity they ask
-as. `identity_token` and the pool's access control are what separate people;
-`entity_id` says who a memory is about.
+`entity_id` is what a captured turn is attributed to. A turn sent without one is
+accepted by the server and produces no memories, so capture appears to succeed
+and nothing is ever recalled. It is required rather than defaulted for that
+reason.
 
-## 4. Verify before you open a session
+Use a lowercase slug, such as `jane-doe`, and use the same value in every
+Memori client: the SDK, the gateway, and this plugin.
 
-```bash
-memori-hook --check
-```
+It is not an access boundary. Memories written into a pool are recalled by
+anyone whose identity can read that pool, whatever entity they ask as.
+`identity_token` and the pool's access control separate people; `entity_id`
+records who a memory is about.
+
+## 4. Verify
+
+Open Claude Code and ask it:
+
+> Is Memori working?
+
+The bundled `memori-check` skill runs the diagnostic and reports the result.
+This requires no path, no remembered command, and nothing on `PATH`.
+
+What it runs is `memori-hook --check`, and what comes back looks like this:
 
 ```
 Memori for Claude Code 0.1.0
 
 Configuration a hook would see
-  api url     http://localhost:8000        (settings.json)
-  entity id   your-name                    (settings.json)
+  api url     https://memori.example.com   (settings.json)
+  entity id   jane-doe                     (settings.json)
   identity    id_your_toke...              (settings.json)
   client key  set                          (settings.json)
 
@@ -226,22 +237,30 @@ The endpoints capture and compaction use ...
 ```
 
 Each line says where the value came from, because that is the part that trips
-people up — the `env` block in `~/.claude/settings.json` outranks your shell, so
+people up: the `env` block in `~/.claude/settings.json` outranks the shell, so
 a terminal can report one entity while the real hook uses another.
 
 The check resolves configuration exactly as a hook does, and writes nothing. The
 three endpoints below recall are reached with a body the server is certain to
 refuse, which proves the route is there and the credentials were accepted without
 creating anything. They are checked because **recall working proves nothing about
-capture** — an identity that can read but not write leaves memory looking fine
+capture**. An identity that can read but not write leaves memory looking fine
 while nothing new is ever recorded.
 
 `0 memories returned` on a fresh install is correct: nothing has been recorded
 yet.
 
-Inside a session you do not need the path: `bin/` is on the Bash tool's `PATH`
-while the plugin is enabled, so `memori-hook --check` works bare — or just ask,
-and the `/memori:check` skill runs it and reads the result back to you.
+**From your own terminal, `memori-hook` is not on your `PATH`.** Claude Code adds
+the plugin's `bin/` to the Bash tool's `PATH` while the plugin is enabled, and
+only there, which is why asking Claude works and typing the bare command in a
+terminal gives you `command not found`. If you want to run it outside a session,
+use the installed copy:
+
+```bash
+~/.claude/plugins/cache/memorilabs/memori/0.1.0/bin/memori-hook --check
+```
+
+Substitute the version you have; `claude plugin list` prints it.
 
 ## 5. Use it
 
@@ -250,7 +269,7 @@ claude
 ```
 
 That's all. Recall runs before each prompt, capture runs when each turn ends.
-Nothing is announced — if it is working you should mostly not notice it.
+Nothing is announced. Working correctly, it is not noticeable.
 
 To confirm it is running:
 
@@ -267,7 +286,7 @@ grep -o "\[memori\][^\"]*" /tmp/claude.log # hook activity, needs debug on
 1. Nothing has been recorded on that subject yet.
 2. The turns it should have come from were captured without an `entity_id`, so
    no memories were made from them. Run `--check` and look at the entity line.
-3. The memory was already delivered earlier in this Memori session — the server
+3. The memory was already delivered earlier in this Memori session. The server
    will not send the same memory twice within about 30 minutes. Wait it out, or
    ask something different.
 4. Your identity has no read access to the pool the memories live in.
@@ -275,7 +294,7 @@ grep -o "\[memori\][^\"]*" /tmp/claude.log # hook activity, needs debug on
 **Nothing is being remembered.** Run `--check` first: it reaches
 `/v1/conversation/turn` and `/v1/augmentation` as well as recall, so it tells
 you whether the turn could have arrived at all. If those are fine, extraction
-only keeps things worth keeping — questions usually produce nothing, while
+only keeps things worth keeping: questions usually produce nothing, while
 stated facts, preferences and constraints usually produce something. Check the
 turn arrived:
 
@@ -289,10 +308,11 @@ a warning on every turn saying so).
 
 **It feels slow.** Recall is on the critical path of every prompt, with a 5
 second ceiling. If you are running the local embedding model, the first call in
-a fresh server process loads it. Capture is not on any critical path — it runs
-`async`, after the turn has ended.
+a fresh server process loads it. Capture runs at the end of a turn and is two
+inserts, so it adds a few tens of milliseconds; the extraction it queues is done
+by a worker afterwards.
 
-**Everything went quiet.** The hook never fails loudly by design — a broken
+**Everything went quiet.** The hook never fails loudly by design, so a broken
 setup and a working one look identical from inside a session. That is what
 `--check` is for. Three things are the exception, because they never fix
 themselves and would otherwise be invisible: a 401, a `prompt_id` this build of
@@ -310,7 +330,7 @@ claude plugin update memori@memorilabs        # restart to apply
 ```
 
 **An update only lands if the version changed.** The install is pinned to the
-`version` in `.claude-plugin/plugin.json`, and the cached copy is what runs — so
+`version` in `.claude-plugin/plugin.json`, and the cached copy is what runs, so
 a pull that changes code but not the version leaves your install exactly as it
 was. If you need the change without a version bump, reinstall:
 
