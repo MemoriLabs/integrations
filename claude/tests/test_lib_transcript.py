@@ -98,6 +98,58 @@ def test_blocks_are_joined():
     assert transcript.message_of(row)["content"] == "Noted.\n[tool: Bash]"
 
 
+# +--- stripped ---+
+
+
+def injected(tag, body="- Ryan prefers tabs"):
+    return f"<{tag}>\nRecalled from long-term memory.\n\n{body}\n</{tag}>"
+
+
+def test_an_injected_block_is_removed():
+    for tag in transcript.INJECTED:
+        assert transcript.stripped(injected(tag)).strip() == ""
+
+
+def test_what_surrounds_an_injected_block_is_kept():
+    text = f"before\n{injected('memori_context')}\nafter"
+
+    assert transcript.stripped(text) == "before\n\nafter"
+
+
+def test_every_injected_block_goes_not_just_the_first():
+    text = injected("memori_context") + injected("memori_context") + "kept"
+
+    assert transcript.stripped(text) == "kept"
+
+
+def test_an_unterminated_block_is_left_alone():
+    # Deleting to the end of the turn on a stray opening tag would lose more
+    # than it saves.
+    text = "<memori_context>\nno closing tag, and a real reply after it"
+
+    assert transcript.stripped(text) == text
+
+
+def test_the_tags_are_the_ones_render_injects():
+    # They are written out in render and matched here; nothing makes the two
+    # agree except this.
+    from memori import render
+
+    assert sorted(transcript.INJECTED) == sorted(
+        (render.COMPACTION_TAG, render.CONTEXT_TAG)
+    )
+
+
+def test_a_row_that_is_only_an_injected_block_yields_nothing():
+    assert transcript.message_of(user(text(injected("memori_context")))) is None
+
+
+def test_a_row_keeps_what_the_user_typed_around_the_block():
+    row = user(text(f"{injected('memori_context')}\nwhat do you remember?"))
+
+    assert transcript.message_of(row)["content"] == "what do you remember?"
+
+
 # +--- tool_uses / tool_results ---+
 
 
@@ -182,6 +234,20 @@ def test_results_are_matched_by_id_not_by_order(tmp_path):
         ("Read", "first"),
         ("Grep", "second"),
     ]
+
+
+def test_a_tool_result_keeps_blocks_the_prose_would_lose(tmp_path):
+    # A tool that reads a file mentioning the tag reported what it found, and
+    # the trace is meant to be what the tool returned.
+    rows = [
+        user(text("go")),
+        assistant(call(name="Read")),
+        user(result(injected("memori_context"))),
+    ]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert "memori_context" in messages[1]["trace"]["tools"][0]["result"]
 
 
 def test_a_result_for_an_unknown_call_is_ignored(tmp_path):

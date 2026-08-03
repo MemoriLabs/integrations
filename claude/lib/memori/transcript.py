@@ -12,12 +12,20 @@ place the call was made.
 """
 
 import json
+import re
 
 CONVERSATION = ("assistant", "user")
 
 # Typed `user`, but Claude Code wrote them, not the person: the skill files it
 # pastes in when a skill loads, and the summary it writes at a compaction.
 NOT_CONVERSATION = ("isCompactSummary", "isMeta")
+
+# The blocks this plugin injects ahead of the prompt. Sending one back would have
+# extraction read a recalled memory as though the user had just said it, so every
+# turn would reinforce whatever the one before it recalled, on no new evidence.
+# Claude Code puts them in rows `message_of` already drops, which is a property of
+# how it happens to type those rows rather than anything agreed with us.
+INJECTED = ("memori_compaction", "memori_context")
 
 
 def json_row(line):
@@ -97,6 +105,21 @@ def tool_results(row):
     ]
 
 
+def stripped(text):
+    """
+    The text without the blocks this plugin injected into it.
+
+    Only a well-formed block goes. An unterminated one is left where it is,
+    since the alternative is deleting the rest of a turn on the strength of a
+    stray opening tag.
+    """
+
+    for tag in INJECTED:
+        text = re.sub(f"<{tag}>.*?</{tag}>", "", text, flags=re.DOTALL)
+
+    return text
+
+
 def message_of(row):
     """One transcript row as a message, or None if it is not conversation."""
 
@@ -114,7 +137,7 @@ def message_of(row):
     else:
         return None
 
-    text = "\n".join(part for part in parts if part).strip()
+    text = stripped("\n".join(part for part in parts if part)).strip()
 
     return {"content": text, "role": row["type"]} if text else None
 
