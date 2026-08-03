@@ -3,7 +3,7 @@
 An installed plugin is pinned to the `version` in `.claude-plugin/plugin.json`,
 so every change that should reach anyone needs a new version here.
 
-## 0.1.0
+## 0.1.1
 
 First release. Three hooks, two skills, and standard library Python only.
 

@@ -67,7 +67,7 @@ claude plugin list
 Installed plugins:
 
   ❯ memori@memorilabs
-    Version: 0.1.0
+    Version: 0.1.1
     Scope: user
     Status: ✔ enabled
 ```
@@ -179,7 +179,7 @@ This requires no path, no remembered command, and nothing on `PATH`.
 What it runs is `memori-hook --check`, and what comes back looks like this:
 
 ```
-Memori for Claude Code 0.1.0
+Memori for Claude Code 0.1.1
 
 Configuration a hook would see
   api url     https://memori.example.com   (settings.json)
@@ -217,7 +217,7 @@ terminal gives you `command not found`. If you want to run it outside a session,
 use the installed copy:
 
 ```bash
-~/.claude/plugins/cache/memorilabs/memori/0.1.0/bin/memori-hook --check
+~/.claude/plugins/cache/memorilabs/memori/0.1.1/bin/memori-hook --check
 ```
 
 Substitute the version you have; `claude plugin list` prints it.
