@@ -121,7 +121,12 @@ def deliver(messages, model):
     api.post(
         "/v1/augmentation",
         {
-            "conversation": {"messages": messages},
+            "conversation": {
+                "messages": [
+                    {"content": message["content"], "role": message["role"]}
+                    for message in messages
+                ]
+            },
             "meta": {
                 "attribution": api.attribution(),
                 "llm": {"model": {"provider": "anthropic", "version": model}},

@@ -80,7 +80,7 @@ Installed plugins:
 > Measured: an edit does not reach the cache, and `marketplace update` does not
 > fetch it either, because the install is pinned to the version in the manifest.
 > To pick up changes, bump `version` in `.claude-plugin/plugin.json`, or
-> reinstall. To work on the plugin without any of that, see below.
+> reinstall.
 >
 > If you added the marketplace from a **local path** rather than from GitHub, the
 > entry keeps that path, so moving or deleting the directory breaks the plugin
@@ -97,23 +97,6 @@ Install with `--scope project`, or enable it in that project's
   "enabledPlugins": ["memori@memorilabs"]
 }
 ```
-
-### Working on the plugin
-
-`--plugin-dir` loads it straight off disk with no install and no cache, so your
-edits are live in the next session. Because the manifest ships
-`defaultEnabled: false`, you also have to enable it explicitly:
-
-```bash
-git clone https://github.com/MemoriLabs/integrations.git
-cd integrations/claude
-
-echo '{"enabledPlugins": ["memori"]}' > /tmp/dev-settings.json
-claude --plugin-dir . --settings /tmp/dev-settings.json
-```
-
-This is the loop to use while developing. Note the plugin is named `memori`
-here, without the `@memorilabs` suffix, because no marketplace is involved.
 
 ## 3. Configure
 
@@ -132,12 +115,8 @@ None of the four is defaulted. A wrong value fails silently: the server accepts
 what the plugin sends and no memories come back, which is indistinguishable from
 having nothing recorded yet.
 
-There is one way to set them, and it depends on which of these you are.
-
-### If you use the plugin
-
-`--config` at install, or `/plugin configure memori@memorilabs` inside Claude
-Code to change one later:
+Set them with `--config` at install, or `/plugin configure memori@memorilabs`
+inside Claude Code to change one later:
 
 ```bash
 claude plugin install memori@memorilabs \
@@ -147,27 +126,8 @@ claude plugin install memori@memorilabs \
   --config entity_id=jane-doe
 ```
 
-This is the path to use. Claude Code prompts for anything you leave out, and
-keeps `identity_token` and `api_header_value` in the system keychain rather than
-in a file on disk.
-
-### If you are working on the plugin, or running CI
-
-`MEMORI_*` environment variables:
-
-```bash
-export MEMORI_API_URL=https://memori.example.com
-export MEMORI_IDENTITY_TOKEN=id_your_token_here
-export MEMORI_API_HEADER_VALUE=your-client-key
-export MEMORI_ENTITY_ID=jane-doe
-```
-
-Each setting's variable is its name in capitals: `MEMORI_API_URL`,
-`MEMORI_IDENTITY_TOKEN`, `MEMORI_API_HEADER_VALUE`, `MEMORI_ENTITY_ID`,
-`MEMORI_DEBUG`. **These outrank the installed plugin's own configuration**, so an
-installed plugin can be aimed at a different server for one shell without
-uninstalling it. They can also go in the `env` block of `~/.claude/settings.json`
-to persist.
+Claude Code prompts for anything you leave out, and keeps `identity_token` and
+`api_header_value` in the system keychain rather than in a file on disk.
 
 ### One place they can never come from
 
@@ -237,8 +197,8 @@ The endpoints capture and compaction use ...
 ```
 
 Each line says where the value came from, because that is the part that trips
-people up: the `env` block in `~/.claude/settings.json` outranks the shell, so
-a terminal can report one entity while the real hook uses another.
+people up: more than one source can supply a setting, and this is how you see
+which one won.
 
 The check resolves configuration exactly as a hook does, and writes nothing. The
 three endpoints below recall are reached with a body the server is certain to
@@ -307,11 +267,9 @@ where Claude Code sent no `prompt_id` (it has since v2.1.196; older builds print
 a warning on every turn saying so).
 
 **It feels slow.** Recall is on the critical path of every prompt, with a 10
-second ceiling. If you are running the local embedding model, the first call in
-a fresh server process loads it, and that first prompt of a session is the one
-you will feel. Capture runs at the end of a turn and is two
-inserts, so it adds a few tens of milliseconds; the extraction it queues is done
-by a worker afterwards.
+second ceiling. Capture runs at the end of a turn and is two inserts, so it adds
+a few tens of milliseconds; the extraction it queues is done by a worker
+afterwards.
 
 **Everything went quiet.** The hook never fails loudly by design, so a broken
 setup and a working one look identical from inside a session. That is what

@@ -40,9 +40,17 @@ def test_tool_calls_become_a_name_only():
     assert transcript.block_text(block) == "[tool: Bash]"
 
 
-def test_tool_results_and_thinking_are_dropped():
+def test_thinking_is_kept():
+    assert transcript.block_text({"type": "thinking", "thinking": " hmm "}) == "hmm"
+
+
+def test_redacted_thinking_has_no_text_to_send():
+    assert transcript.block_text({"type": "redacted_thinking", "data": "AbC=="}) is None
+
+
+def test_a_tool_result_stays_out_of_the_prose():
+    # `turn` puts it on the message's trace instead.
     assert transcript.block_text({"type": "tool_result", "content": "secret"}) is None
-    assert transcript.block_text({"type": "thinking", "thinking": "hmm"}) is None
 
 
 def test_a_non_dict_block_is_ignored():
@@ -65,9 +73,17 @@ def test_string_content_is_read():
     assert transcript.message_of(row) == {"content": "plain string", "role": "user"}
 
 
-def test_rows_that_only_look_like_conversation_are_skipped():
-    for flag in ("isSidechain", "isMeta", "isCompactSummary"):
+def test_claude_codes_own_text_is_skipped():
+    for flag in ("isMeta", "isCompactSummary"):
         assert transcript.message_of(user(text("hi"), **{flag: True})) is None
+
+
+def test_a_sidechain_row_is_not_skipped():
+    # Nothing sets it since 2.1.220: subagent turns go to their own file.
+    assert transcript.message_of(user(text("hi"), isSidechain=True)) == {
+        "content": "hi",
+        "role": "user",
+    }
 
 
 def test_a_row_with_nothing_sendable_yields_nothing():
@@ -80,6 +96,118 @@ def test_blocks_are_joined():
     row = assistant(text("Noted."), {"type": "tool_use", "name": "Bash"})
 
     assert transcript.message_of(row)["content"] == "Noted.\n[tool: Bash]"
+
+
+# +--- tool_uses / tool_results ---+
+
+
+def call(name="Bash", args=None, id="t1"):
+    return {"type": "tool_use", "id": id, "name": name, "input": args or {}}
+
+
+def result(value, id="t1"):
+    return {"type": "tool_result", "tool_use_id": id, "content": value}
+
+
+def test_a_tool_use_becomes_a_trace_tool_awaiting_its_result():
+    row = assistant(call(args={"command": "cat .env"}))
+
+    assert transcript.tool_uses(row) == [
+        ("t1", {"name": "Bash", "args": {"command": "cat .env"}, "result": None})
+    ]
+
+
+def test_args_that_are_not_an_object_are_sent_as_an_empty_one():
+    # One odd block should not cost the whole turn its validation.
+    for odd in ("a string", ["a", "list"], None):
+        row = assistant({"type": "tool_use", "id": "t1", "name": "B", "input": odd})
+
+        assert transcript.tool_uses(row) == [
+            ("t1", {"name": "B", "args": {}, "result": None})
+        ]
+
+
+def test_a_row_without_list_content_has_no_tools():
+    assert transcript.tool_uses({"message": {"content": "plain"}}) == []
+    assert transcript.tool_results({"message": {"content": "plain"}}) == []
+
+
+def test_tool_results_are_read_with_their_call_id():
+    row = user(result("OPENAI_API_KEY=sk-secret"))
+
+    assert transcript.tool_results(row) == [("t1", "OPENAI_API_KEY=sk-secret")]
+
+
+# +--- trace assembly ---+
+
+
+def test_the_trace_hangs_off_the_message_that_made_the_call(tmp_path):
+    rows = [user(text("go")), assistant(text("Running."), call())]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert "trace" not in messages[0]
+    assert messages[1]["content"] == "Running.\n[tool: Bash]"
+    assert messages[1]["trace"]["tools"][0]["name"] == "Bash"
+
+
+def test_a_result_reaches_the_call_it_belongs_to(tmp_path):
+    rows = [
+        user(text("go")),
+        assistant(call(args={"command": "cat .env"})),
+        user(result("OPENAI_API_KEY=sk-secret")),
+    ]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert messages[1]["trace"]["tools"] == [
+        {
+            "name": "Bash",
+            "args": {"command": "cat .env"},
+            "result": "OPENAI_API_KEY=sk-secret",
+        }
+    ]
+
+
+def test_results_are_matched_by_id_not_by_order(tmp_path):
+    rows = [
+        user(text("go")),
+        assistant(call(name="Read", id="a"), call(name="Grep", id="b")),
+        user(result("second", id="b"), result("first", id="a")),
+    ]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert [(t["name"], t["result"]) for t in messages[1]["trace"]["tools"]] == [
+        ("Read", "first"),
+        ("Grep", "second"),
+    ]
+
+
+def test_a_result_for_an_unknown_call_is_ignored(tmp_path):
+    # It belongs to a turn this one does not cover.
+    rows = [user(text("go")), assistant(call()), user(result("stray", id="elsewhere"))]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert messages[1]["trace"]["tools"][0]["result"] is None
+
+
+def test_a_call_whose_result_never_arrives_keeps_a_null_result(tmp_path):
+    # Stop can fire before the result is written.
+    rows = [user(text("go")), assistant(call())]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert messages[1]["trace"]["tools"][0]["result"] is None
+
+
+def test_a_message_without_tool_calls_carries_no_trace(tmp_path):
+    rows = [user(text("go")), assistant(text("done"))]
+
+    messages, _ = transcript.turn(payload(write(tmp_path, rows)))
+
+    assert all("trace" not in message for message in messages)
 
 
 # +--- rows_for_turn / turn ---+

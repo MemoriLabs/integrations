@@ -3,6 +3,8 @@ import pytest
 PROMPT_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_PROMPT_ID = "22222222-2222-2222-2222-222222222222"
 
+REPLY = "they seem to be in a hurry\nNoted.\n[tool: Bash]"
+
 
 def assistant(*blocks, model="claude-opus-5"):
     return {"type": "assistant", "message": {"content": list(blocks), "model": model}}
@@ -29,10 +31,19 @@ def turn(prompt_id=PROMPT_ID, prompt="remember that I prefer tabs"):
         assistant(
             {"type": "thinking", "thinking": "they seem to be in a hurry"},
             text("Noted."),
-            {"type": "tool_use", "name": "Bash", "input": {"command": "cat .env"}},
+            {
+                "type": "tool_use",
+                "id": "call_1",
+                "name": "Bash",
+                "input": {"command": "cat .env"},
+            },
         ),
         user(
-            {"type": "tool_result", "content": "OPENAI_API_KEY=sk-secret"},
+            {
+                "type": "tool_result",
+                "tool_use_id": "call_1",
+                "content": "OPENAI_API_KEY=sk-secret",
+            },
             prompt_id=prompt_id,
         ),
         assistant(text("Done.")),
@@ -102,18 +113,63 @@ def test_the_turn_types_every_message(api, run_stop, transcript):
         assert message["type"] == "text"
 
 
-def test_excludes_tool_output_and_thinking(api, run_stop, transcript):
+def test_the_augmentation_call_carries_the_prose_but_not_the_results(
+    api, run_stop, transcript
+):
+    # It takes content and role and nothing else, so the trace cannot ride
+    # along, and the results live only there.
     run_stop(transcript(turn()))
 
     body = str(bodies(api)["/v1/augmentation"])
+
+    assert "in a hurry" in body
     assert "sk-secret" not in body
-    assert "in a hurry" not in body
+
+
+def test_the_results_reach_the_turn_call(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    assert "sk-secret" in str(bodies(api)["/v1/conversation/turn"])
+
+
+def test_the_trace_carries_the_arguments_and_the_result(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    messages = bodies(api)["/v1/conversation/turn"]["messages"]
+    traced = [message for message in messages if message.get("trace")]
+
+    assert [tool for message in traced for tool in message["trace"]["tools"]] == [
+        {
+            "name": "Bash",
+            "args": {"command": "cat .env"},
+            "result": "OPENAI_API_KEY=sk-secret",
+        }
+    ]
+
+
+def test_the_augmentation_call_carries_no_trace(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    for message in bodies(api)["/v1/augmentation"]["conversation"]["messages"]:
+        assert set(message) == {"content", "role"}
+
+
+def test_untraced_messages_stay_untraced(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    messages = bodies(api)["/v1/conversation/turn"]["messages"]
+
+    assert [bool(message.get("trace")) for message in messages] == [
+        False,
+        True,
+        False,
+    ]
 
 
 def test_renders_a_tool_call_as_its_name(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
-    assert "Noted.\n[tool: Bash]" in contents(api)
+    assert REPLY in contents(api)
     assert "cat .env" not in str(bodies(api)["/v1/augmentation"])
 
 
@@ -122,7 +178,7 @@ def test_keeps_the_prompt_and_the_reply(api, run_stop, transcript):
 
     assert contents(api) == [
         "remember that I prefer tabs",
-        "Noted.\n[tool: Bash]",
+        REPLY,
         "Done.",
     ]
 
@@ -201,7 +257,7 @@ def test_a_turn_that_arrives_while_capturing_is_left_alone(api, run_stop, transc
     assert "remember that I prefer tabs" in contents(api)
 
 
-def test_skips_sidechain_meta_and_compact_rows(api, run_stop, transcript):
+def test_skips_claude_codes_own_text(api, run_stop, transcript):
     rows = [
         user(text("the real prompt")),
         user(text("subagent chatter"), isSidechain=True),
@@ -212,7 +268,7 @@ def test_skips_sidechain_meta_and_compact_rows(api, run_stop, transcript):
 
     run_stop(transcript(rows))
 
-    assert contents(api) == ["the real prompt", "ok"]
+    assert contents(api) == ["the real prompt", "subagent chatter", "ok"]
 
 
 def test_ignores_non_conversation_rows(api, run_stop, transcript):
@@ -312,7 +368,7 @@ def test_survives_a_partially_written_transcript(api, run_stop, transcript):
     assert result.returncode == 0
     assert contents(api) == [
         "remember that I prefer tabs",
-        "Noted.\n[tool: Bash]",
+        REPLY,
         "Done.",
     ]
 

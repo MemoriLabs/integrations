@@ -3,17 +3,21 @@ Turning Claude Code's transcript into the messages Memori stores.
 
 A transcript is JSONL and holds far more than conversation: attachments,
 titles, queue operations, file-history snapshots. Only `user` and `assistant`
-rows are conversation, and only some of their content blocks may be sent.
+rows are conversation, and every block within one is sent.
+
+A message says the same thing twice: `content` names each tool call, and
+`trace` carries that call's arguments and its result. The backend reads both
+and links them by message index, so the name stays in the prose to mark the
+place the call was made.
 """
 
 import json
 
 CONVERSATION = ("assistant", "user")
 
-# Rows that look like conversation but are not. Sidechain rows are subagent
-# traffic, which already reaches the parent as a tool result; the other two are
-# Claude Code's own text.
-NOT_CONVERSATION = ("isCompactSummary", "isMeta", "isSidechain")
+# Typed `user`, but Claude Code wrote them, not the person: the skill files it
+# pastes in when a skill loads, and the summary it writes at a compaction.
+NOT_CONVERSATION = ("isCompactSummary", "isMeta")
 
 
 def json_row(line):
@@ -26,7 +30,7 @@ def json_row(line):
 
 
 def block_text(block):
-    """One content block as text, or None for blocks that must not be sent."""
+    """One content block as text, or None for a block with no text of its own."""
 
     if not isinstance(block, dict):
         return None
@@ -34,13 +38,63 @@ def block_text(block):
     if block.get("type") == "text":
         return (block.get("text") or "").strip()
 
-    # The tool's name, never its arguments, and never its result. Tool results
-    # are the bulk of a transcript and the likeliest place for a secret to be
-    # sitting in a file that was read.
+    # Usually empty: Claude Code 2.1.220 keeps the reasoning in an encrypted
+    # `signature` and writes the text as "".
+    if block.get("type") == "thinking":
+        return (block.get("thinking") or "").strip()
+
     if block.get("type") == "tool_use":
         return f"[tool: {block.get('name')}]"
 
     return None
+
+
+def tool_uses(row):
+    """
+    This row's tool calls as (call id, trace tool) pairs.
+
+    `args` has to be an object or the server rejects the whole turn, so
+    anything else becomes an empty one.
+    """
+
+    content = (row.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return []
+
+    found = []
+
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+
+        args = block.get("input")
+
+        found.append(
+            (
+                block.get("id"),
+                {
+                    "name": block.get("name") or "",
+                    "args": args if isinstance(args, dict) else {},
+                    "result": None,
+                },
+            )
+        )
+
+    return found
+
+
+def tool_results(row):
+    """This row's tool results as (call id, result) pairs."""
+
+    content = (row.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return []
+
+    return [
+        (block.get("tool_use_id"), block.get("content"))
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "tool_result"
+    ]
 
 
 def message_of(row):
@@ -69,10 +123,8 @@ def rows_for_turn(path, prompt_id):
     """
     Every row belonging to one turn: the prompt that opened it, then the rest.
 
-    A generator, so no caller ever holds the raw rows. A single turn can contain
-    a tool result of arbitrary size, and those are the rows we are about to throw
-    away. Reading them one at a time keeps the peak cost the largest row rather
-    than the sum of them.
+    A generator, though that no longer bounds what a turn costs: results are
+    kept now, so `turn` accumulates the whole of it either way.
     """
 
     started = False
@@ -109,15 +161,33 @@ def turn(payload):
     messages = []
     model = None
 
+    # Shared with the messages they are attached to, so filling a result in
+    # here changes what is about to be sent.
+    awaiting = {}
+
     for row in rows_for_turn(payload["transcript_path"], payload["prompt_id"]):
         # The last assistant row that names one wins, which forward iteration
         # gives by overwriting.
         if row.get("type") == "assistant":
             model = (row.get("message") or {}).get("model") or model
 
+        for call_id, result in tool_results(row):
+            tool = awaiting.get(call_id)
+            if tool is not None:
+                tool["result"] = result
+
+        calls = tool_uses(row)
+
         message = message_of(row)
         if message:
+            if calls:
+                message["trace"] = {"tools": [tool for _, tool in calls]}
+
             messages.append(message)
+
+            for call_id, tool in calls:
+                if call_id:
+                    awaiting[call_id] = tool
 
     # Stop fires before Claude Code has flushed the closing assistant rows, so
     # the transcript usually stops at the user's prompt and the reply would be
