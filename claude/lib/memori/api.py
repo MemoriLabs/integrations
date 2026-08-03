@@ -10,11 +10,15 @@ from memori import config
 
 # Recall runs in front of every prompt, so the budget is how long a user will
 # wait before typing.
-TIMEOUT = 5.0
+TIMEOUT = 10.0
+
+# Capture holds the turn open, so hooks.json allows it five seconds. deliver()
+# spends this twice in sequence, which has to fit inside that.
+CAPTURE_TIMEOUT = 2.0
 
 # Compaction runs an LLM over the session's memories in rolling batches. It
 # fires once, after a compaction, so it can afford to wait.
-COMPACTION_TIMEOUT = 25.0
+COMPACTION_TIMEOUT = 35.0
 
 
 class SameHostRedirects(urllib.request.HTTPRedirectHandler):

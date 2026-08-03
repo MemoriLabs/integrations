@@ -306,9 +306,10 @@ Two turns that are never sent, by design: one you interrupted with ESC, and one
 where Claude Code sent no `prompt_id` (it has since v2.1.196; older builds print
 a warning on every turn saying so).
 
-**It feels slow.** Recall is on the critical path of every prompt, with a 5
+**It feels slow.** Recall is on the critical path of every prompt, with a 10
 second ceiling. If you are running the local embedding model, the first call in
-a fresh server process loads it. Capture runs at the end of a turn and is two
+a fresh server process loads it, and that first prompt of a session is the one
+you will feel. Capture runs at the end of a turn and is two
 inserts, so it adds a few tens of milliseconds; the extraction it queues is done
 by a worker afterwards.
 

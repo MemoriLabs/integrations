@@ -116,6 +116,7 @@ def deliver(messages, model):
             "attribution": api.attribution(),
             "messages": [{**message, "type": "text"} for message in messages],
         },
+        timeout=api.CAPTURE_TIMEOUT,
     )
     api.post(
         "/v1/augmentation",
@@ -127,6 +128,7 @@ def deliver(messages, model):
                 "platform": {"provider": "claude-code"},
             },
         },
+        timeout=api.CAPTURE_TIMEOUT,
     )
 
 

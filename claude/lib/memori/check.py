@@ -26,8 +26,8 @@ HTTP_CAUSES = {
 # hook would have passed too. Compaction runs an LLM and is the slow one.
 ENDPOINTS = (
     ("/v1/compaction", None, api.COMPACTION_TIMEOUT),
-    ("/v1/conversation/turn", {}, api.TIMEOUT),
-    ("/v1/augmentation", {}, api.TIMEOUT),
+    ("/v1/conversation/turn", {}, api.CAPTURE_TIMEOUT),
+    ("/v1/augmentation", {}, api.CAPTURE_TIMEOUT),
 )
 
 
