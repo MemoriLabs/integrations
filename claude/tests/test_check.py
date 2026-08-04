@@ -162,7 +162,7 @@ def test_the_probes_write_nothing(api, recalled, run_check):
     recalled("a fact")
     run_check()
 
-    # An empty body is all pydantic needs to refuse the request, and it never
+    # An empty body is all the server needs to refuse the request, and it never
     # reaches a handler. Anything else here would be a memory the user did not
     # make by asking whether their setup works.
     written = [r for r in api.requests if r["path"] != "/v1/recall"]

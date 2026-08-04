@@ -1,9 +1,22 @@
+import json
+
 import pytest
 
 PROMPT_ID = "11111111-1111-1111-1111-111111111111"
 OTHER_PROMPT_ID = "22222222-2222-2222-2222-222222222222"
 
-REPLY = "they seem to be in a hurry\nNoted.\n[tool: Bash]"
+CALL = {
+    "type": "tool_use",
+    "id": "call_1",
+    "name": "Bash",
+    "input": {"command": "cat .env"},
+}
+RESULT = {
+    "type": "tool_result",
+    "tool_use_id": "call_1",
+    "content": "OPENAI_API_KEY=sk-secret",
+}
+REPLY = f"they seem to be in a hurry\nNoted.\n{json.dumps(CALL)}"
 
 
 def assistant(*blocks, model="claude-opus-5"):
@@ -85,8 +98,8 @@ def contents(api):
 def test_posts_the_turn_before_the_augmentation(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
-    # AugmentationQueueProcessor reads conversation_turn for the session's
-    # history, and only /v1/conversation/turn writes it.
+    # The server may read the turn from either call, so it is written before the
+    # augmentation is queued.
     assert [request["path"] for request in api.requests] == [
         "/v1/conversation/turn",
         "/v1/augmentation",
@@ -96,34 +109,39 @@ def test_posts_the_turn_before_the_augmentation(api, run_stop, transcript):
 def test_both_calls_carry_the_same_conversation(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
+    # Both endpoints take the same fields now, so both get the same object.
     sent = bodies(api)
-    turn_messages = sent["/v1/conversation/turn"]["messages"]
-    assert [
-        {"content": message["content"], "role": message["role"]}
-        for message in turn_messages
-    ] == sent["/v1/augmentation"]["conversation"]["messages"]
+
+    assert (
+        sent["/v1/conversation/turn"]["messages"]
+        == sent["/v1/augmentation"]["conversation"]["messages"]
+    )
 
 
-def test_the_turn_types_every_message(api, run_stop, transcript):
-    run_stop(transcript(turn()))
-
+def test_every_message_is_typed_by_its_blocks(api, run_stop, transcript):
     # type is nullable inbound but GET /v1/compaction requires a string coming
     # back out, so a null here 500s compaction later.
-    for message in bodies(api)["/v1/conversation/turn"]["messages"]:
-        assert message["type"] == "text"
+    run_stop(transcript(turn()))
+
+    messages = bodies(api)["/v1/conversation/turn"]["messages"]
+
+    assert all(message["type"] for message in messages)
+    assert [message["type"] for message in messages] == [
+        "text",
+        "assistant",
+        "tool_result",
+        "text",
+    ]
 
 
-def test_the_augmentation_call_carries_the_prose_but_not_the_results(
-    api, run_stop, transcript
-):
-    # It takes content and role and nothing else, so the trace cannot ride
-    # along, and the results live only there.
+def test_the_augmentation_call_carries_the_results_too(api, run_stop, transcript):
+    # Either request may be the one read, so each has to stand on its own.
     run_stop(transcript(turn()))
 
     body = str(bodies(api)["/v1/augmentation"])
 
     assert "in a hurry" in body
-    assert "sk-secret" not in body
+    assert "sk-secret" in body
 
 
 def test_the_results_reach_the_turn_call(api, run_stop, transcript):
@@ -147,11 +165,21 @@ def test_the_trace_carries_the_arguments_and_the_result(api, run_stop, transcrip
     ]
 
 
-def test_the_augmentation_call_carries_no_trace(api, run_stop, transcript):
+def test_the_augmentation_call_carries_the_same_trace(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
-    for message in bodies(api)["/v1/augmentation"]["conversation"]["messages"]:
-        assert set(message) == {"content", "role"}
+    sent = bodies(api)
+    traced = [
+        message
+        for message in sent["/v1/augmentation"]["conversation"]["messages"]
+        if message.get("trace")
+    ]
+
+    assert [message["trace"] for message in traced] == [
+        message["trace"]
+        for message in sent["/v1/conversation/turn"]["messages"]
+        if message.get("trace")
+    ]
 
 
 def test_untraced_messages_stay_untraced(api, run_stop, transcript):
@@ -163,14 +191,14 @@ def test_untraced_messages_stay_untraced(api, run_stop, transcript):
         False,
         True,
         False,
+        False,
     ]
 
 
-def test_renders_a_tool_call_as_its_name(api, run_stop, transcript):
+def test_sends_a_tool_call_as_claude_wrote_it(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
     assert REPLY in contents(api)
-    assert "cat .env" not in str(bodies(api)["/v1/augmentation"])
 
 
 def test_keeps_the_prompt_and_the_reply(api, run_stop, transcript):
@@ -179,6 +207,7 @@ def test_keeps_the_prompt_and_the_reply(api, run_stop, transcript):
     assert contents(api) == [
         "remember that I prefer tabs",
         REPLY,
+        json.dumps(RESULT),
         "Done.",
     ]
 
@@ -190,6 +219,7 @@ def test_roles_come_from_the_row_type(api, run_stop, transcript):
     assert [message["role"] for message in messages] == [
         "user",
         "assistant",
+        "user",
         "assistant",
     ]
 
@@ -257,7 +287,7 @@ def test_a_turn_that_arrives_while_capturing_is_left_alone(api, run_stop, transc
     assert "remember that I prefer tabs" in contents(api)
 
 
-def test_skips_claude_codes_own_text(api, run_stop, transcript):
+def test_sends_claude_codes_own_text_too(api, run_stop, transcript):
     rows = [
         user(text("the real prompt")),
         user(text("subagent chatter"), isSidechain=True),
@@ -268,10 +298,16 @@ def test_skips_claude_codes_own_text(api, run_stop, transcript):
 
     run_stop(transcript(rows))
 
-    assert contents(api) == ["the real prompt", "subagent chatter", "ok"]
+    assert contents(api) == [
+        "the real prompt",
+        "subagent chatter",
+        "system injected",
+        "previous summary",
+        "ok",
+    ]
 
 
-def test_ignores_non_conversation_rows(api, run_stop, transcript):
+def test_sends_non_conversation_rows_as_the_rows_they_are(api, run_stop, transcript):
     rows = [
         user(text("the real prompt")),
         {"type": "ai-title", "title": "a title"},
@@ -285,7 +321,21 @@ def test_ignores_non_conversation_rows(api, run_stop, transcript):
 
     run_stop(transcript(rows))
 
-    assert contents(api) == ["the real prompt", "ok"]
+    sent = bodies(api)["/v1/conversation/turn"]["messages"]
+
+    assert [message["role"] for message in sent] == [
+        "user",
+        "ai-title",
+        "queue-operation",
+        "attachment",
+        "file-history-snapshot",
+        "last-prompt",
+        "system",
+        "assistant",
+    ]
+    # A row with no message of its own arrives as the row it was written as.
+    assert '"operation": "enqueue"' in sent[2]["content"]
+    assert sent[2]["type"] == "queue-operation"
 
 
 def test_sends_attribution_and_the_model(api, run_stop, transcript):
@@ -351,13 +401,15 @@ def test_a_stop_with_no_prompt_id_says_so(api, run_stop, transcript):
     assert "v2.1.196" in result.stderr
 
 
-def test_a_turn_with_no_text_sends_nothing(api, run_stop, transcript):
+def test_a_turn_of_nothing_but_a_tool_result_is_still_sent(api, run_stop, transcript):
     rows = [user({"type": "tool_result", "content": "only tool output"})]
 
     result = run_stop(transcript(rows))
 
     assert result.returncode == 0
-    assert api.requests == []
+    assert contents(api) == [
+        json.dumps({"type": "tool_result", "content": "only tool output"})
+    ]
 
 
 def test_survives_a_partially_written_transcript(api, run_stop, transcript):
@@ -369,6 +421,7 @@ def test_survives_a_partially_written_transcript(api, run_stop, transcript):
     assert contents(api) == [
         "remember that I prefer tabs",
         REPLY,
+        json.dumps(RESULT),
         "Done.",
     ]
 

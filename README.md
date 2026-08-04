@@ -68,8 +68,7 @@ reaches anyone.** So a release is:
 
 1. Bump `version` in the integration's `plugin.json`.
 2. Bump the matching `version` in `.claude-plugin/marketplace.json`.
-3. Add a `CHANGELOG.md` entry under the new version.
-4. Tag it:
+3. Tag it:
 
 ```bash
 claude plugin tag claude --push

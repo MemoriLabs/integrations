@@ -12,7 +12,7 @@
       "name": "memori",
       "source": "./claude",
       "description": "Persistent memory for Claude Code. Recalls what you have told Memori before each prompt and sends each finished turn back to be remembered.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "productivity",
       "keywords": ["memory", "recall", "context", "personalization"]
     }

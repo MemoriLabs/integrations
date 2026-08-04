@@ -162,11 +162,12 @@ def test_hooks_use_exec_form():
 def test_capture_runs_synchronously():
     # An async hook is started and not waited for, so a non-interactive session
     # exits before it finishes and the turn is never captured. Both endpoints it
-    # calls are plain inserts, measured at about 45ms together, so the turn ends
-    # synchronously instead. The short timeout bounds a slow server: capture is
-    # the thing worth losing there, not the turn.
+    # calls are plain inserts, so the turn ends synchronously instead. The
+    # timeout still bounds a slow server -- capture is the thing worth losing
+    # there, not the turn -- but a turn now carries the whole transcript rather
+    # than the conversation alone, and two seconds stopped fitting one.
     assert "async" not in handlers("Stop")[0]
-    assert handlers("Stop")[0]["timeout"] <= 5
+    assert handlers("Stop")[0]["timeout"] <= 10
 
 
 def test_recall_still_blocks():

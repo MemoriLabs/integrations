@@ -18,7 +18,7 @@ HTTP_CAUSES = {
 }
 
 # Recall is exercised for real, below, because its result is the thing people
-# actually want to know. The rest are reached with a body pydantic is certain to
+# actually want to know. The rest are reached with a body the server is certain to
 # refuse, which proves the route is there and the credentials were accepted
 # without writing anything: validation only runs once auth has passed.
 #

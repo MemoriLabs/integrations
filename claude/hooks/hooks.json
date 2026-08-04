@@ -24,7 +24,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"
             ],
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }

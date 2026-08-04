@@ -34,48 +34,81 @@ def test_text_blocks_are_kept():
     assert transcript.block_text(text("  hello  ")) == "hello"
 
 
-def test_tool_calls_become_a_name_only():
+def test_a_tool_call_is_sent_as_the_block_it_is():
     block = {"type": "tool_use", "name": "Bash", "input": {"command": "cat .env"}}
 
-    assert transcript.block_text(block) == "[tool: Bash]"
+    assert transcript.block_text(block) == json.dumps(block)
 
 
 def test_thinking_is_kept():
     assert transcript.block_text({"type": "thinking", "thinking": " hmm "}) == "hmm"
 
 
-def test_redacted_thinking_has_no_text_to_send():
-    assert transcript.block_text({"type": "redacted_thinking", "data": "AbC=="}) is None
+def test_a_block_with_no_text_of_its_own_is_sent_as_json():
+    # Images, documents, redacted thinking, and anything Anthropic adds next.
+    for block in (
+        {"type": "redacted_thinking", "data": "AbC=="},
+        {"type": "image", "source": {"type": "base64", "data": "iVBOR"}},
+        {"type": "something_new", "whatever": 1},
+    ):
+        assert transcript.block_text(block) == json.dumps(block)
 
 
-def test_a_tool_result_stays_out_of_the_prose():
-    # `turn` puts it on the message's trace instead.
-    assert transcript.block_text({"type": "tool_result", "content": "secret"}) is None
+def test_a_tool_result_is_sent_as_the_block_it_is():
+    block = {"type": "tool_result", "content": "x"}
+
+    assert transcript.block_text(block) == json.dumps(block)
 
 
-def test_a_non_dict_block_is_ignored():
-    assert transcript.block_text("not a block") is None
+def test_a_non_dict_block_is_sent_as_json():
+    assert transcript.block_text("not a block") == '"not a block"'
 
 
 # +--- message_of ---+
 
 
-def test_only_conversation_rows_become_messages():
+def test_every_row_becomes_a_message_whatever_its_type():
     for kind in ("attachment", "ai-title", "queue-operation", "system"):
-        assert (
-            transcript.message_of({"type": kind, "message": {"content": "x"}}) is None
-        )
+        row = {"type": kind, "message": {"content": "x"}}
+
+        assert transcript.message_of(row) == {
+            "content": "x",
+            "role": kind,
+            "type": "text",
+        }
+
+
+def test_a_row_carrying_no_message_is_sent_as_the_row():
+    row = {"type": "file-history-snapshot", "messageId": "abc"}
+
+    assert transcript.message_of(row) == {
+        "content": json.dumps(row),
+        "role": "file-history-snapshot",
+        "type": "file-history-snapshot",
+    }
+
+
+def test_a_row_with_no_type_still_becomes_a_message():
+    assert transcript.message_of({"message": {"content": "x"}})["role"] == "unknown"
 
 
 def test_string_content_is_read():
     row = {"type": "user", "message": {"content": "plain string"}}
 
-    assert transcript.message_of(row) == {"content": "plain string", "role": "user"}
+    assert transcript.message_of(row) == {
+        "content": "plain string",
+        "role": "user",
+        "type": "text",
+    }
 
 
-def test_claude_codes_own_text_is_skipped():
+def test_claude_codes_own_text_is_sent_too():
     for flag in ("isMeta", "isCompactSummary"):
-        assert transcript.message_of(user(text("hi"), **{flag: True})) is None
+        assert transcript.message_of(user(text("hi"), **{flag: True})) == {
+            "content": "hi",
+            "role": "user",
+            "type": "text",
+        }
 
 
 def test_a_sidechain_row_is_not_skipped():
@@ -83,19 +116,26 @@ def test_a_sidechain_row_is_not_skipped():
     assert transcript.message_of(user(text("hi"), isSidechain=True)) == {
         "content": "hi",
         "role": "user",
+        "type": "text",
     }
 
 
-def test_a_row_with_nothing_sendable_yields_nothing():
-    assert (
-        transcript.message_of(user({"type": "tool_result", "content": "out"})) is None
-    )
+def test_a_tool_result_row_is_typed_by_its_block():
+    block = {"type": "tool_result", "content": "out"}
+    message = transcript.message_of(user(block))
+
+    assert message == {
+        "content": json.dumps(block),
+        "role": "user",
+        "type": "tool_result",
+    }
 
 
 def test_blocks_are_joined():
-    row = assistant(text("Noted."), {"type": "tool_use", "name": "Bash"})
+    call = {"type": "tool_use", "name": "Bash"}
+    row = assistant(text("Noted."), call)
 
-    assert transcript.message_of(row)["content"] == "Noted.\n[tool: Bash]"
+    assert transcript.message_of(row)["content"] == f"Noted.\n{json.dumps(call)}"
 
 
 # +--- stripped ---+
@@ -140,8 +180,11 @@ def test_the_tags_are_the_ones_render_injects():
     )
 
 
-def test_a_row_that_is_only_an_injected_block_yields_nothing():
-    assert transcript.message_of(user(text(injected("memori_context")))) is None
+def test_a_row_that_is_only_an_injected_block_falls_back_to_the_row():
+    message = transcript.message_of(user(text(injected("memori_context"))))
+
+    assert message["type"] == "user"
+    assert "memori_context" not in message["content"]
 
 
 def test_a_row_keeps_what_the_user_typed_around_the_block():
@@ -199,7 +242,7 @@ def test_the_trace_hangs_off_the_message_that_made_the_call(tmp_path):
     messages, _ = transcript.turn(payload(write(tmp_path, rows)))
 
     assert "trace" not in messages[0]
-    assert messages[1]["content"] == "Running.\n[tool: Bash]"
+    assert json.dumps(call()) in messages[1]["content"]
     assert messages[1]["trace"]["tools"][0]["name"] == "Bash"
 
 
@@ -328,7 +371,7 @@ def test_the_window_closes_when_the_next_turn_begins(tmp_path):
 
 def test_rows_without_a_prompt_id_stay_in_the_open_turn(tmp_path):
     # Assistant rows and attachments carry none; only the next user prompt closes
-    # the window.
+    # the window. The attachment is sent too, as the row it is.
     rows = [
         user(text("mine")),
         {"type": "attachment", "attachment": {"type": "skill_listing"}},
@@ -337,7 +380,8 @@ def test_rows_without_a_prompt_id_stay_in_the_open_turn(tmp_path):
 
     messages, _ = transcript.turn(payload(write(tmp_path, rows)))
 
-    assert [m["content"] for m in messages] == ["mine", "my reply"]
+    assert [m["role"] for m in messages] == ["user", "attachment", "assistant"]
+    assert [m["content"] for m in messages][::2] == ["mine", "my reply"]
 
 
 def test_rows_are_yielded_rather_than_collected(tmp_path):
@@ -390,8 +434,8 @@ def test_the_reply_is_appended_when_the_transcript_lacks_it(tmp_path):
     messages, _ = transcript.turn(payload)
 
     assert messages == [
-        {"content": "remember this", "role": "user"},
-        {"content": "Noted.", "role": "assistant"},
+        {"content": "remember this", "role": "user", "type": "text"},
+        {"content": "Noted.", "role": "assistant", "type": "text"},
     ]
 
 

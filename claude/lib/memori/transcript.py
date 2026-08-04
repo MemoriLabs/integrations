@@ -2,30 +2,26 @@
 Turning Claude Code's transcript into the messages Memori stores.
 
 A transcript is JSONL and holds far more than conversation: attachments,
-titles, queue operations, file-history snapshots. Only `user` and `assistant`
-rows are conversation, and every block within one is sent.
+titles, queue operations, file-history snapshots. All of it is sent. Every row
+of the turn becomes a message, and anything without text of its own is sent as
+the JSON it was written as, so a row type or block type we have never seen
+arrives intact rather than disappearing.
 
-A message says the same thing twice: `content` names each tool call, and
-`trace` carries that call's arguments and its result. The backend reads both
-and links them by message index, so the name stays in the prose to mark the
-place the call was made.
+Nothing is renamed on the way through: every `role` and `type` is a string
+Claude Code wrote. Tool calls therefore arrive twice, in the prose and on the
+trace, which is the price of not inventing a shorthand for them.
+
+The blocks this plugin injected itself are the one thing removed.
 """
 
 import json
 import re
 
-CONVERSATION = ("assistant", "user")
-
-# Typed `user`, but Claude Code wrote them, not the person: the skill files it
-# pastes in when a skill loads, and the summary it writes at a compaction.
-NOT_CONVERSATION = ("isCompactSummary", "isMeta")
-
-# The blocks this plugin injects ahead of the prompt. Sending one back would have
-# extraction read a recalled memory as though the user had just said it, so every
-# turn would reinforce whatever the one before it recalled, on no new evidence.
-# Claude Code puts them in rows `message_of` already drops, which is a property of
-# how it happens to type those rows rather than anything agreed with us.
+# Sending one back would have extraction read a recalled memory as newly stated,
+# so every turn would reinforce whatever the last one recalled.
 INJECTED = ("memori_compaction", "memori_context")
+
+UNKNOWN = "unknown"
 
 
 def json_row(line):
@@ -37,11 +33,17 @@ def json_row(line):
     return row if isinstance(row, dict) else {}
 
 
+def content_of(row):
+    """This row's content blocks, or None if it holds no message."""
+
+    return (row.get("message") or {}).get("content")
+
+
 def block_text(block):
-    """One content block as text, or None for a block with no text of its own."""
+    """One content block as text. A block with no text of its own is sent as JSON."""
 
     if not isinstance(block, dict):
-        return None
+        return json.dumps(block)
 
     if block.get("type") == "text":
         return (block.get("text") or "").strip()
@@ -51,21 +53,44 @@ def block_text(block):
     if block.get("type") == "thinking":
         return (block.get("thinking") or "").strip()
 
-    if block.get("type") == "tool_use":
-        return f"[tool: {block.get('name')}]"
+    # Sent as written, so a block type nobody here has heard of still arrives.
+    return json.dumps(block)
 
-    return None
+
+def block_kind(row):
+    """
+    A message's `type`, from the blocks Claude Code wrote.
+
+    Rows hold one kind of block almost always. Where they hold several, or
+    none, the row's own type stands in rather than a name we made up.
+    """
+
+    content = content_of(row)
+
+    if isinstance(content, str):
+        return "text"
+
+    kinds = (
+        {
+            block.get("type")
+            for block in content
+            if isinstance(block, dict) and block.get("type")
+        }
+        if isinstance(content, list)
+        else set()
+    )
+
+    return kinds.pop() if len(kinds) == 1 else row.get("type") or UNKNOWN
 
 
 def tool_uses(row):
     """
     This row's tool calls as (call id, trace tool) pairs.
 
-    `args` has to be an object or the server rejects the whole turn, so
-    anything else becomes an empty one.
+    `args` has to be an object or the server rejects the whole turn.
     """
 
-    content = (row.get("message") or {}).get("content")
+    content = content_of(row)
     if not isinstance(content, list):
         return []
 
@@ -94,7 +119,7 @@ def tool_uses(row):
 def tool_results(row):
     """This row's tool results as (call id, result) pairs."""
 
-    content = (row.get("message") or {}).get("content")
+    content = content_of(row)
     if not isinstance(content, list):
         return []
 
@@ -109,9 +134,8 @@ def stripped(text):
     """
     The text without the blocks this plugin injected into it.
 
-    Only a well-formed block goes. An unterminated one is left where it is,
-    since the alternative is deleting the rest of a turn on the strength of a
-    stray opening tag.
+    An unterminated block is left alone; the alternative is deleting the rest
+    of a turn on the strength of a stray opening tag.
     """
 
     for tag in INJECTED:
@@ -121,33 +145,40 @@ def stripped(text):
 
 
 def message_of(row):
-    """One transcript row as a message, or None if it is not conversation."""
+    """
+    One transcript row as a message. Every row becomes one.
 
-    if row.get("type") not in CONVERSATION:
-        return None
+    `role` is the row's own type, so an attachment arrives as "attachment"
+    rather than dressed up as something a person said.
+    """
 
-    if any(row.get(flag) for flag in NOT_CONVERSATION):
-        return None
+    content = content_of(row)
 
-    content = (row.get("message") or {}).get("content")
     if isinstance(content, str):
         parts = [content.strip()]
     elif isinstance(content, list):
         parts = [text for text in map(block_text, content) if text]
     else:
-        return None
+        parts = []
 
     text = stripped("\n".join(part for part in parts if part)).strip()
+    kind = block_kind(row)
 
-    return {"content": text, "role": row["type"]} if text else None
+    # A row with no message of its own is the row, and so is one the stripping
+    # above emptied. Neither has a block to take its type from.
+    if not text:
+        text = stripped(json.dumps(row))
+        kind = row.get("type") or UNKNOWN
+
+    return {"content": text, "role": row.get("type") or UNKNOWN, "type": kind}
 
 
 def rows_for_turn(path, prompt_id):
     """
     Every row belonging to one turn: the prompt that opened it, then the rest.
 
-    A generator, though that no longer bounds what a turn costs: results are
-    kept now, so `turn` accumulates the whole of it either way.
+    A generator, though that no longer bounds what a turn costs: nothing is
+    discarded now, so `turn` accumulates the whole of it either way.
     """
 
     started = False
@@ -200,23 +231,22 @@ def turn(payload):
                 tool["result"] = result
 
         calls = tool_uses(row)
-
         message = message_of(row)
-        if message:
-            if calls:
-                message["trace"] = {"tools": [tool for _, tool in calls]}
 
-            messages.append(message)
+        if calls:
+            message["trace"] = {"tools": [tool for _, tool in calls]}
 
-            for call_id, tool in calls:
-                if call_id:
-                    awaiting[call_id] = tool
+        messages.append(message)
+
+        for call_id, tool in calls:
+            if call_id:
+                awaiting[call_id] = tool
 
     # Stop fires before Claude Code has flushed the closing assistant rows, so
     # the transcript usually stops at the user's prompt and the reply would be
     # lost. It is on the payload, so take it from there.
     reply = (payload.get("last_assistant_message") or "").strip()
     if reply and (not messages or messages[-1]["content"] != reply):
-        messages.append({"content": reply, "role": "assistant"})
+        messages.append({"content": reply, "role": "assistant", "type": "text"})
 
     return messages, model

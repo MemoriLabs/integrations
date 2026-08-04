@@ -104,29 +104,20 @@ def deliver(messages, model):
     """
     Post the turn, then post it for extraction.
 
-    Order matters. AugmentationQueueProcessor reads conversation_turn for the
-    session's history on the first augmentation, and only /v1/conversation/turn
-    writes it. The type is nullable inbound but GET /v1/compaction requires a
-    string on the way back out, so omitting it makes compaction 500 later.
+    Order matters: the server may read the turn from either call, so the turn is
+    written before the augmentation is queued. Both carry the same messages, so
+    it does not matter which one it is read from.
     """
 
     api.post(
         "/v1/conversation/turn",
-        {
-            "attribution": api.attribution(),
-            "messages": [{**message, "type": "text"} for message in messages],
-        },
+        {"attribution": api.attribution(), "messages": messages},
         timeout=api.CAPTURE_TIMEOUT,
     )
     api.post(
         "/v1/augmentation",
         {
-            "conversation": {
-                "messages": [
-                    {"content": message["content"], "role": message["role"]}
-                    for message in messages
-                ]
-            },
+            "conversation": {"messages": messages},
             "meta": {
                 "attribution": api.attribution(),
                 "llm": {"model": {"provider": "anthropic", "version": model}},

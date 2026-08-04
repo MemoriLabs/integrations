@@ -12,9 +12,8 @@ from memori import config
 # wait before typing.
 TIMEOUT = 10.0
 
-# Capture holds the turn open, so hooks.json allows it five seconds. deliver()
-# spends this twice in sequence, which has to fit inside that.
-CAPTURE_TIMEOUT = 2.0
+# Capture holds the turn open, so hooks.json bounds it
+CAPTURE_TIMEOUT = 4.0
 
 # Compaction runs an LLM over the session's memories in rolling batches. It
 # fires once, after a compaction, so it can afford to wait.
