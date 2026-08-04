@@ -1,7 +1,7 @@
 ---
 name: memori-memory
 description: This skill should be used whenever a <memori_context> or <memori_compaction> block appears in the conversation, when the user asks what you know or remember about them, when they ask you to remember something, or when they ask why you do or do not remember a fact.
-version: 0.1.2
+version: 0.1.3
 ---
 
 # Memori memory

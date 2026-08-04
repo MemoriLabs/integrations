@@ -48,9 +48,9 @@ To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
 skill runs the diagnostic and reports the result: the configuration a hook would
 see, and whether every endpoint the plugin uses is reachable. It writes nothing.
 
-**[SETUP.md](SETUP.md) is the full guide**: prerequisites, configuration for
-users and developers, per-project installs, and what to do when nothing is being
-recalled or remembered.
+**[INSTALL.md](INSTALL.md) is the full guide**: prerequisites, configuration,
+per-project installs, and what to do when nothing is being recalled or
+remembered.
 
 Two constraints to know before starting:
 
@@ -65,14 +65,19 @@ Two constraints to know before starting:
 
 ## What gets sent
 
-Only conversation:
+The whole turn:
 
-- your prompts and Claude's replies
-- tool **names**, as `[tool: Bash]`
+- your prompts, Claude's replies, and its thinking
+- every tool call with its full arguments, and every tool result in full
+- the attachments Claude Code adds to a turn
 
-Never tool output, tool arguments, Claude's thinking, or subagent traffic. Tool
-results are the bulk of any transcript and the likeliest place a secret sits, so
-they are excluded wholesale rather than scanned.
+There is no redaction and no filtering, so **anything a session reads reaches the
+server**: a credential in a file Claude opened, a token printed by a command it
+ran, or one you pasted into a prompt yourself. Tool results are the bulk of any
+transcript and the likeliest place a secret sits, and they are sent.
+
+The one thing removed is this plugin's own injected context, so extraction does
+not read a recalled memory back as something newly stated.
 
 Each turn is scoped by the `prompt_id` Claude Code provides, so a turn is sent
 once and nothing is kept on disk. Capture is two inserts and runs at the end of

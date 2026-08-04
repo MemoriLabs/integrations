@@ -6,8 +6,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
+            "command": "bash",
             "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/python.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py"
             ],
             "timeout": 45
@@ -20,8 +21,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
+            "command": "bash",
             "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/python.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"
             ],
             "timeout": 10
@@ -34,8 +36,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3",
+            "command": "bash",
             "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/python.sh",
               "${CLAUDE_PLUGIN_ROOT}/hooks/user_prompt_submit.py"
             ],
             "timeout": 15

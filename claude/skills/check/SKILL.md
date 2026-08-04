@@ -1,7 +1,7 @@
 ---
 name: memori-check
 description: This skill should be used when the user asks whether Memori is working, why nothing is being recalled or remembered, or asks to check, test, or debug the Memori plugin's configuration or connection.
-version: 0.1.2
+version: 0.1.3
 ---
 
 # Checking Memori

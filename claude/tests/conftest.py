@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -17,10 +18,10 @@ _FIXTURES = os.path.join(_ROOT, "tests", "fixtures", "hook_payloads.json")
 sys.path.insert(0, os.path.join(_ROOT, "lib"))
 
 
-def script(name):
-    """Path to one of the per-event entry points hooks.json points at."""
+def script(name, suffix=".py"):
+    """Path to one of the files hooks.json points at."""
 
-    return os.path.join(_ROOT, "hooks", f"{name}.py")
+    return os.path.join(_ROOT, "hooks", f"{name}{suffix}")
 
 
 class _Recorder(BaseHTTPRequestHandler):
@@ -192,6 +193,55 @@ def run_script(run_hook):
 
     def _run(name, payload, env=None):
         return run_hook(payload, env=env, entry=script(name))
+
+    return _run
+
+
+# How a planted interpreter behaves. `stub` is the Microsoft Store stand-in,
+# which is the reason the shim probes by running rather than by `command -v`:
+# it is on PATH, it runs, and it exits 49 having done nothing.
+INTERPRETERS = {
+    "works": None,
+    "stub": "exit 49",
+    "refuses": "exit 1",
+}
+
+
+@pytest.fixture
+def run_shim(tmp_path):
+    """
+    Drive hooks/python.sh over a PATH holding only what a test plants.
+
+    Which interpreter it picks is the whole behaviour, so the real ones are kept
+    out of the way: `plant` names each candidate and how it should behave, and
+    anything unnamed is simply absent.
+    """
+
+    def _run(plant, args, payload=""):
+        binaries = tmp_path / "bin"
+        binaries.mkdir(exist_ok=True)
+
+        for name, behaviour in plant.items():
+            path = binaries / name
+            body = INTERPRETERS[behaviour] or f'exec {sys.executable} "$@"'
+
+            with open(path, "w") as f:
+                f.write(f"#!/bin/sh\n{body}\n")
+
+            os.chmod(path, 0o755)
+
+        # Only what was planted. Leaving the real directories on PATH would let
+        # the developer's own python3 answer for a test that planted none, and
+        # the interesting cases are the ones where nothing usable exists. bash
+        # is resolved here instead, since PATH no longer reaches it.
+        return subprocess.run(
+            [shutil.which("bash") or "/bin/bash", script("python", ".sh"), *args],
+            capture_output=True,
+            env={**os.environ, "PATH": str(binaries)},
+            input=payload,
+            text=True,
+            timeout=30,
+        )
 
     return _run
 

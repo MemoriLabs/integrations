@@ -18,6 +18,8 @@ from conftest import _ROOT
 
 SCRIPTS = ("session_start", "stop", "user_prompt_submit")
 
+SHIM = "python.sh"
+
 REPO = os.path.dirname(_ROOT)
 
 NAME = "memori"
@@ -141,12 +143,17 @@ def test_every_event_runs_its_own_script():
     for event, name in wired.items():
         found = handlers(event)
         assert len(found) == 1, event
-        assert found[0]["args"] == [f"${{CLAUDE_PLUGIN_ROOT}}/hooks/{name}.py"]
+        assert found[0]["args"] == [
+            f"${{CLAUDE_PLUGIN_ROOT}}/hooks/{SHIM}",
+            f"${{CLAUDE_PLUGIN_ROOT}}/hooks/{name}.py",
+        ]
 
 
 def test_every_wired_script_exists():
     for name in SCRIPTS:
         assert os.path.isfile(os.path.join(_ROOT, "hooks", f"{name}.py"))
+
+    assert os.path.isfile(os.path.join(_ROOT, "hooks", SHIM))
 
 
 def test_hooks_use_exec_form():
@@ -155,8 +162,47 @@ def test_hooks_use_exec_form():
     for event in hooks():
         for handler in handlers(event):
             assert handler["type"] == "command", event
-            assert handler["command"] == "python3", event
+            assert handler["command"] == "bash", event
             assert "args" in handler, event
+
+
+def test_every_event_reaches_python_through_the_shim():
+    # Not `python3` directly. On Windows that name resolves to the Microsoft
+    # Store stub, which runs and exits 49 having done nothing, so the plugin
+    # would look installed and remember nothing. The shim probes each candidate
+    # by running it.
+    for event in hooks():
+        for handler in handlers(event):
+            assert handler["args"][0].endswith(f"/hooks/{SHIM}"), event
+
+
+def test_the_shim_refuses_an_interpreter_too_old_to_parse_the_hooks():
+    # `exec` replaces the shim, so a SyntaxError from an ancient interpreter
+    # would surface as the hook's own non-zero exit -- the failure the shim
+    # exists to prevent. 3.9 is what macOS ships and the oldest the library is
+    # tested against; raising it above that would strand default macOS.
+    with open(os.path.join(_ROOT, "hooks", SHIM)) as f:
+        body = f.read()
+
+    assert "sys.version_info >= (3, 9)" in body
+
+
+def test_the_shim_never_fails_the_hook():
+    # A non-zero exit is a blocking error to Claude Code: on UserPromptSubmit it
+    # erases what the user typed. So a missing interpreter has to degrade to no
+    # memories, the same as an unreachable server does. `set -e` would undo that
+    # from any line in the file.
+    with open(os.path.join(_ROOT, "hooks", SHIM)) as f:
+        body = f.read()
+
+    # The comments say both of these strings, so only the code is read.
+    code = "\n".join(
+        line for line in body.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "set -e" not in code
+    assert "exit 1" not in code
+    assert code.rstrip().endswith("exit 0")
 
 
 def test_capture_runs_synchronously():

@@ -26,7 +26,7 @@ To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
 skill runs the diagnostic and reports the result: the configuration a hook would
 see, and whether every endpoint the plugin uses is reachable. It writes nothing.
 
-**[claude/SETUP.md](claude/SETUP.md) is the full guide**: prerequisites,
+**[claude/INSTALL.md](claude/INSTALL.md) is the full guide**: prerequisites,
 configuration, per-project installs, and what to do when nothing is being
 recalled or remembered.
 
@@ -39,8 +39,19 @@ claude plugin marketplace add MemoriLabs/integrations \
 
 ## Development
 
-Python 3.12. Formatting is black at 88 columns and isort with the black profile,
-matching the Memori backend.
+Python 3.12 to develop and run the tests. The plugin itself runs on 3.9 and up,
+which is what `claude/hooks/python.sh` gates on, because that is what macOS
+ships and stranding it would break the default install.
+
+Formatting is black at 88 columns and isort with the black profile, matching the
+Memori backend.
+
+**Installing copies the plugin**, into
+`~/.claude/plugins/cache/memorilabs/memori/<version>/`, and that copy is what
+runs. Editing a checkout changes nothing until the version is bumped. If you
+added the marketplace from a local path rather than from GitHub, the entry keeps
+that path, so moving the directory breaks the plugin with `cache-miss` and the
+marketplace has to be re-added.
 
 ```bash
 pip install pre-commit
