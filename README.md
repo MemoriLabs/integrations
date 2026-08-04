@@ -9,6 +9,11 @@ Claude Code plugin marketplace.
 
 ## Claude Code
 
+Using the desktop app? Follow the
+**[Claude Code Desktop steps](claude/INSTALL.md#install-in-claude-code-desktop)**.
+
+From the command line:
+
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs \
@@ -26,9 +31,8 @@ To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
 skill runs the diagnostic and reports the result: the configuration a hook would
 see, and whether every endpoint the plugin uses is reachable. It writes nothing.
 
-**[claude/INSTALL.md](claude/INSTALL.md) is the full guide**: prerequisites,
-configuration, per-project installs, and what to do when nothing is being
-recalled or remembered.
+See the **[Claude Code quickstart](claude/INSTALL.md)** for the required values,
+installation, and a simple connection check.
 
 This is a monorepo, so you can limit what lands on disk:
 
