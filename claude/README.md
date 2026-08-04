@@ -31,6 +31,11 @@ standard library Python, with no state kept on disk.
 
 ## Install
 
+Using the desktop app? Follow the
+**[Claude Code Desktop steps](INSTALL.md#install-in-claude-code-desktop)**.
+
+From the command line:
+
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs \
@@ -48,9 +53,8 @@ To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
 skill runs the diagnostic and reports the result: the configuration a hook would
 see, and whether every endpoint the plugin uses is reachable. It writes nothing.
 
-**[INSTALL.md](INSTALL.md) is the full guide**: prerequisites, configuration,
-per-project installs, and what to do when nothing is being recalled or
-remembered.
+See the **[quickstart](INSTALL.md)** for the required values, installation, and a
+simple connection check.
 
 Two constraints to know before starting:
 
