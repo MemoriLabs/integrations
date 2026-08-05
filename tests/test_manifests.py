@@ -88,12 +88,43 @@ def test_the_plugin_installs_disabled():
     assert manifest("plugin.json")["defaultEnabled"] is False
 
 
-def test_both_credentials_are_required_and_sensitive():
-    options = manifest("plugin.json")["userConfig"]
+def test_the_manifest_asks_for_no_configuration():
+    # `userConfig` would put the credential in Claude Code's own store, which
+    # only a hook process can read -- and then no skill could report on it. The
+    # configure skill owns the file instead.
+    assert "userConfig" not in manifest("plugin.json")
 
-    for name in ("api_header_value", "identity_token"):
-        assert options[name]["required"] is True, name
-        assert options[name]["sensitive"] is True, name
+
+def test_the_configure_skill_owns_every_setting_the_hooks_read():
+    # A setting the skill never mentions is one nobody can discover, since there
+    # is no generated form any more.
+    from memori import config
+
+    with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
+        body = f.read()
+
+    for name in config.DEFAULTS:
+        assert name in body, name
+
+
+def test_the_configure_skill_names_the_environments_that_have_a_key():
+    # Naming one the resolver has no key for leaves the plugin unconfigured.
+    from memori import config
+
+    with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
+        body = f.read()
+
+    for name in config.API_KEYS:
+        assert name in body, name
+
+
+def test_the_configure_skill_never_prints_a_whole_token():
+    # It reads a file holding one, and is read by a model that will happily echo
+    # what it was shown unless told not to.
+    with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
+        body = f.read().lower()
+
+    assert "never print the identity token in full" in body
 
 
 def test_the_two_manifests_agree():
@@ -116,12 +147,6 @@ def test_the_catalogue_points_at_this_directory():
     assert source.startswith("./")
     assert os.path.isdir(os.path.join(REPO, source))
     assert os.path.samefile(os.path.join(REPO, source), _ROOT)
-
-
-def test_the_library_reports_the_manifest_version():
-    import memori
-
-    assert memori.version() == manifest("plugin.json")["version"]
 
 
 def test_the_skills_are_versioned_with_the_plugin():
@@ -229,12 +254,40 @@ def test_session_start_is_filtered_to_compactions_by_the_matcher():
 
 
 def test_every_skill_is_loadable():
+    # Claude Code only scans <plugin>/skills/<name>/SKILL.md, and a file it
+    # cannot read frontmatter from loads as zero skills without saying so.
     skills = os.path.join(_ROOT, "skills")
 
     for name in os.listdir(skills):
         path = os.path.join(skills, name, "SKILL.md")
         assert os.path.isfile(path), name
 
+        with open(path) as f:
+            assert f.read().startswith("---\n"), name
+
         front = frontmatter(path)
         assert front.get("name"), name
         assert front.get("description"), name
+
+
+def test_the_configure_skill_names_the_file_it_owns():
+    with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
+        body = f.read()
+
+    assert "~/.claude/memori/config.json" in body
+
+
+def test_the_configure_skill_answers_is_it_working():
+    # There is no separate diagnostic, so setup and "why is nothing being
+    # remembered" have to reach the same skill. The description is what decides.
+    with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
+        description = frontmatter(
+            os.path.join(_ROOT, "skills", "configure", "SKILL.md")
+        )["description"]
+        body = f.read()
+
+    assert "working" in description and "recalled" in description
+
+    # Nothing the plugin does is observable from inside a session, so the only
+    # honest answer sends the user somewhere else.
+    assert "dashboard" in body

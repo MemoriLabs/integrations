@@ -198,11 +198,11 @@ def rows_for_turn(path, prompt_id):
                 started = True
 
             elif carried and carried != prompt_id:
-                # And the next turn's prompt closes it. Stop runs async, so a
-                # queued prompt can land in the file while this hook is still
-                # reading. Without this the turns merge and the next one is
-                # captured twice. Rows that carry no promptId at all (assistant
-                # rows, attachments) belong to the turn already open.
+                # And the next turn's prompt closes it. A prompt typed ahead
+                # lands in the file while this hook is still reading, and
+                # without this the turns merge and the next one is captured
+                # twice. Rows that carry no promptId at all (assistant rows,
+                # attachments) belong to the turn already open.
                 break
 
             if row:

@@ -41,8 +41,8 @@ def run_compact(run_hook, payloads):
         payload for payload in payloads if payload["hook_event_name"] == "SessionStart"
     )
 
-    def _run(source="compact", env=None):
-        return run_hook({**session_start, "source": source}, env=env)
+    def _run(source="compact", config=None):
+        return run_hook({**session_start, "source": source}, config=config)
 
     return _run
 
@@ -140,14 +140,14 @@ def test_survives_the_no_session_500(api, run_compact):
 
 
 def test_survives_a_dead_server(run_compact):
-    result = run_compact(env={"MEMORI_API_URL": "http://127.0.0.1:1"})
+    result = run_compact(config={"api_url": "http://127.0.0.1:1"})
 
     assert result.returncode == 0
     assert result.stdout == ""
 
 
 def test_survives_missing_credentials(api, run_compact):
-    result = run_compact(env={"MEMORI_IDENTITY_TOKEN": ""})
+    result = run_compact(config={"identity_token": ""})
 
     assert result.returncode == 0
     assert api.requests == []

@@ -7,10 +7,7 @@ was nothing to recall, nothing to capture, or nothing to say.
 
 from memori import api, config, render, transcript
 
-NO_CREDENTIALS = (
-    "not configured; set MEMORI_API_URL, MEMORI_IDENTITY_TOKEN, "
-    "MEMORI_API_HEADER_VALUE and MEMORI_ENTITY_ID, or configure the plugin"
-)
+NO_CREDENTIALS = "not configured; run /memori:configure"
 
 NO_PROMPT_ID = (
     "this Stop carried no prompt_id, so the turn cannot be told apart from the "
@@ -18,10 +15,15 @@ NO_PROMPT_ID = (
     "sent one since v2.1.196; upgrade."
 )
 
-REFUSED = (
-    "this project's .claude/settings.json sets {names} for Memori. A repository "
-    "does not get to decide that, so it was ignored. Set it in "
-    "~/.claude/settings.json, or configure the plugin."
+UNREADABLE = (
+    "~/.claude/memori/config.json is there but could not be read, so nothing is "
+    "being remembered. Fix the JSON, or run /memori:configure to rewrite it."
+)
+
+UNKNOWN_ENVIRONMENT = (
+    "the environment is {named}, which is not one of {known}, so no client key "
+    "could be taken from it and nothing is being remembered. Run "
+    "/memori:configure and set it to one of those."
 )
 
 
@@ -128,27 +130,26 @@ def deliver(messages, model):
     )
 
 
-HANDLERS = {
-    "SessionStart": on_session_start,
-    "Stop": on_stop,
-    "UserPromptSubmit": on_user_prompt_submit,
-}
-
-
-def handle(payload):
-    """Dispatch by event name. Used when one entry point serves every event."""
-
-    handler = HANDLERS.get(payload.get("hook_event_name"))
-
-    return run(handler, payload) if handler else None
-
-
 def run(handler, payload):
     """Run one handler, once credentials are known to exist."""
 
-    if config.refused():
-        api.warn(REFUSED.format(names=", ".join(config.refused())))
+    # Warned rather than logged: both of these leave the plugin unconfigured by
+    # mistake, and would otherwise present exactly as never having set it up.
+    if config.unreadable():
+        api.warn(UNREADABLE)
+        return None
 
+    named = config.unknown_environment()
+
+    if named:
+        api.warn(
+            UNKNOWN_ENVIRONMENT.format(
+                named=named, known=", ".join(sorted(config.API_KEYS))
+            )
+        )
+        return None
+
+    # Never configured is a choice, so it stays quiet.
     if not config.is_configured():
         api.log(NO_CREDENTIALS)
         return None

@@ -91,13 +91,15 @@ def test_ignores_unhandled_events(api, run_hook, payloads):
 
 
 def test_survives_a_dead_server(run_hook, prompt_payload):
-    result = run_hook(prompt_payload, env={"MEMORI_API_URL": "http://127.0.0.1:1"})
+    result = run_hook(prompt_payload, config={"api_url": "http://127.0.0.1:1"})
 
     assert result.returncode == 0
     assert result.stdout == ""
 
 
-def test_survives_an_unauthorized_response(api, run_hook, prompt_payload):
+def test_a_refused_recall_injects_nothing(api, run_hook, prompt_payload):
+    # What recall returned is the only thing this plugin ever puts in the
+    # context. A failure reaches stderr and goes no further, however permanent.
     api.responses["/v1/recall"] = (401, {"detail": "Unauthorized"})
 
     result = run_hook(prompt_payload)
@@ -107,7 +109,7 @@ def test_survives_an_unauthorized_response(api, run_hook, prompt_payload):
 
 
 def test_survives_missing_credentials(api, run_hook, prompt_payload):
-    result = run_hook(prompt_payload, env={"MEMORI_IDENTITY_TOKEN": ""})
+    result = run_hook(prompt_payload, config={"identity_token": ""})
 
     assert result.returncode == 0
     assert result.stdout == ""
@@ -154,3 +156,55 @@ def test_memory_without_a_date_still_renders(api, run_hook, prompt_payload):
 
     assert "- undated fact\n" in context
     assert "recorded" not in context
+
+
+# +--- what a hook says out loud ---+
+
+
+def test_an_unauthorized_hook_warns_even_with_debug_off(api, run_hook, prompt_payload):
+    # A 401 never fixes itself, so it must not be silent the way a timeout can be.
+    api.responses["/v1/recall"] = (401, {"detail": "Unauthorized"})
+
+    result = run_hook(prompt_payload)
+
+    assert result.returncode == 0
+    assert "HTTP 401" in result.stderr
+    assert "config.json" in result.stderr
+
+
+def test_an_unreadable_config_warns_even_with_debug_off(api, run_hook, prompt_payload):
+    # Nothing else would say so: the hooks go quiet, and the log that explains
+    # why needs the debug setting out of the file it cannot read.
+    from conftest import config_path
+
+    with open(config_path(), "w") as f:
+        f.write("{ not json")
+
+    result = run_hook(prompt_payload)
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert "could not be read" in result.stderr
+    assert api.requests == []
+
+
+def test_never_configured_stays_quiet(api, run_hook, prompt_payload):
+    # The other half: an install nobody has set up yet is not a fault.
+    import os
+
+    from conftest import config_path
+
+    os.remove(config_path())
+
+    result = run_hook(prompt_payload)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert api.requests == []
+
+
+def test_other_failures_stay_quiet_with_debug_off(run_hook, prompt_payload):
+    result = run_hook(prompt_payload, config={"api_url": "http://127.0.0.1:1"})
+
+    assert result.returncode == 0
+    assert result.stderr == ""

@@ -21,13 +21,13 @@ context with everything else. `SessionStart` then asks Memori for a summary of
 what the session had established: standing orders, environment, open loops, and
 where it left off. That is injected so the thread survives the compaction.
 
-A bundled skill tells Claude how to read the injected blocks: use them as things
-it already knows rather than announcing a lookup, never claim to remember
-something that is not there, and prefer the current conversation and the real
-state of the code when a memory disagrees.
+Each block opens with a line telling Claude how to read it: as something it
+already knows rather than something it was handed, without announcing the
+lookup, and never as grounds to claim it remembers anything the block does not
+say.
 
-No proxy, no `base_url` to change, no SDK. Three hooks, two skills, and a little
-standard library Python, with no state kept on disk.
+No proxy, no `base_url` to change, no SDK. Three hooks, one skill, and a little
+standard library Python.
 
 ## Install
 
@@ -38,23 +38,36 @@ From the command line:
 
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
-claude plugin install memori@memorilabs \
-  --config api_url=https://memori.example.com \
-  --config identity_token=id_your_token_here \
-  --config api_header_value=your-client-key \
-  --config entity_id=jane-doe
+claude plugin install memori@memorilabs
 claude plugin enable memori@memorilabs
 ```
 
-It installs disabled. Everything here goes to a server the moment it is enabled,
-so enabling it is a separate step.
+It installs disabled. Everything here goes to a server the moment it is enabled
+and configured, so both are separate steps.
 
-To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
-skill runs the diagnostic and reports the result: the configuration a hook would
-see, and whether every endpoint the plugin uses is reachable. It writes nothing.
+Then start a session and run `/memori:configure`. It asks for an API URL, an
+identity token and an entity ID, and writes them to
+`~/.claude/memori/config.json` with `chmod 600`. That file is the only place the
+plugin reads configuration from — no environment variables, and nothing a
+repository can reach.
 
-See the **[quickstart](INSTALL.md)** for the required values, installation, and a
-simple connection check.
+`application_env` decides which client API key is sent. It defaults to
+`production`; set it to `staging` or `local` to talk to those instead. The keys
+identify the caller rather than authenticating it, so the plugin carries them and
+only a deployment on its own host sets `api_header_value` by hand.
+
+**The only thing this plugin ever adds to a conversation is the memories it
+recalled.** Nothing else — no status, no warning, no notice that something
+failed. A refused token or an unreachable server is written to the hook's
+stderr, which means `claude --debug-file memori.log` and reading that file. It
+is a deliberate trade: recall stays the one channel into your context, and the
+cost is that a failure is silent until you go and look.
+
+Ask **"is Memori working?"** and Claude reads your configuration back. Whether
+memories are actually accumulating is a question for the Memori dashboard, which
+is the only place that shows what was stored.
+
+See the **[quickstart](INSTALL.md)** for the required values and installation.
 
 Two constraints to know before starting:
 
@@ -63,9 +76,9 @@ Two constraints to know before starting:
   plugin refuses to run until it is set. Use the same value in every Memori
   client. It is not an access boundary: what can be recalled is decided by the
   identity token and the pool it can read.
-- **A project's `.claude/settings.json` cannot configure Memori.** A repository
-  can commit that file and Claude Code merges its `env` block into every hook, so
-  anything a workspace supplies is refused and named rather than used.
+- **A repository cannot configure Memori.** Configuration lives in one file
+  under your home directory, so a cloned project has no way to say where your
+  conversation is sent, who it is attributed to, or what authenticates it.
 
 ## What gets sent
 
@@ -84,11 +97,20 @@ The one thing removed is this plugin's own injected context, so extraction does
 not read a recalled memory back as something newly stated.
 
 Each turn is scoped by the `prompt_id` Claude Code provides, so a turn is sent
-once and nothing is kept on disk. Capture is two inserts and runs at the end of
-the turn, adding a few tens of milliseconds; the extraction it queues happens in
-a worker, so nothing waits for that.
+once, and no conversation is kept on disk. Capture is two inserts and runs at the
+end of the turn, adding a few tens of milliseconds; the extraction it queues
+happens in a worker, so nothing waits for that.
 **An interrupted turn is not remembered**: `Stop` does not fire on ESC, and
-catching it later would mean keeping state between sessions.
+catching it later would mean tracking unfinished turns between sessions.
+
+## What it keeps on disk
+
+One file: `~/.claude/memori/config.json`, written by `/memori:configure` with
+`chmod 600`. Your settings and nothing else — no conversation, no log, no cache.
+It is the only place the identity token exists in full, and the only thing the
+hooks read configuration from.
+
+Uninstalling does not remove it. Delete `~/.claude/memori/` if you want it gone.
 
 ## Safety
 

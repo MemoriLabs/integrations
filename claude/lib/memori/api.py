@@ -8,6 +8,15 @@ import urllib.request
 
 from memori import config
 
+# The failures worth writing to stderr whether or not debug is on. A timeout or
+# a dead server is worth logging and forgetting; a refused credential is not
+# going to come good on its own.
+TERMINAL = {
+    401: "the identity token is being rejected",
+    403: "that identity cannot read the memory pool it asked for",
+    404: "nothing at that api url answered as a Memori server",
+}
+
 # Recall runs in front of every prompt, so the budget is how long a user will
 # wait before typing.
 TIMEOUT = 10.0
@@ -59,13 +68,7 @@ OPENER = urllib.request.build_opener(SameHostRedirects)
 
 
 def request(path, body=None, timeout=TIMEOUT):
-    """
-    The primitive. A body means POST, no body means GET.
-
-    `get` and `post` below are the sugar for the two call sites that know their
-    shape; the diagnostic calls this directly, because it walks a table of
-    endpoints where the body, and so the method, differs per row.
-    """
+    """A body means POST, no body means GET."""
 
     headers = {
         "Authorization": f"Bearer {config.setting('identity_token')}",
@@ -84,6 +87,17 @@ def request(path, body=None, timeout=TIMEOUT):
         raw = response.read()
 
     return json.loads(raw) if raw else {}
+
+
+def terminal(error):
+    """Why this failed, if it is a failure that will never fix itself."""
+
+    if not isinstance(error, urllib.error.HTTPError):
+        return None
+
+    named = TERMINAL.get(error.code)
+
+    return f"HTTP {error.code} — {named}" if named else None
 
 
 def get(path, timeout=TIMEOUT):
@@ -114,8 +128,7 @@ def report_failure(what, error):
 
     log(f"{what} failed: {error}")
 
-    if isinstance(error, urllib.error.HTTPError) and error.code == 401:
-        warn(
-            f"{what} was rejected as unauthorized. Check the identity token and "
-            "client API key. Run the Memori check for details."
-        )
+    named = terminal(error)
+
+    if named:
+        warn(f"{what} was refused: {named}. Check ~/.claude/memori/config.json.")

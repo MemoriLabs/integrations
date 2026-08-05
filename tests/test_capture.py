@@ -68,7 +68,7 @@ def run_stop(run_hook, stop_payload):
     def _run(
         path,
         prompt_id=PROMPT_ID,
-        env=None,
+        config=None,
         last_assistant_message="",
         stop_hook_active=False,
     ):
@@ -80,7 +80,7 @@ def run_stop(run_hook, stop_payload):
             "transcript_path": path,
         }
 
-        return run_hook(payload, env=env)
+        return run_hook(payload, config=config)
 
     return _run
 
@@ -134,22 +134,6 @@ def test_every_message_is_typed_by_its_blocks(api, run_stop, transcript):
     ]
 
 
-def test_the_augmentation_call_carries_the_results_too(api, run_stop, transcript):
-    # Either request may be the one read, so each has to stand on its own.
-    run_stop(transcript(turn()))
-
-    body = str(bodies(api)["/v1/augmentation"])
-
-    assert "in a hurry" in body
-    assert "sk-secret" in body
-
-
-def test_the_results_reach_the_turn_call(api, run_stop, transcript):
-    run_stop(transcript(turn()))
-
-    assert "sk-secret" in str(bodies(api)["/v1/conversation/turn"])
-
-
 def test_the_trace_carries_the_arguments_and_the_result(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
@@ -165,23 +149,6 @@ def test_the_trace_carries_the_arguments_and_the_result(api, run_stop, transcrip
     ]
 
 
-def test_the_augmentation_call_carries_the_same_trace(api, run_stop, transcript):
-    run_stop(transcript(turn()))
-
-    sent = bodies(api)
-    traced = [
-        message
-        for message in sent["/v1/augmentation"]["conversation"]["messages"]
-        if message.get("trace")
-    ]
-
-    assert [message["trace"] for message in traced] == [
-        message["trace"]
-        for message in sent["/v1/conversation/turn"]["messages"]
-        if message.get("trace")
-    ]
-
-
 def test_untraced_messages_stay_untraced(api, run_stop, transcript):
     run_stop(transcript(turn()))
 
@@ -193,12 +160,6 @@ def test_untraced_messages_stay_untraced(api, run_stop, transcript):
         False,
         False,
     ]
-
-
-def test_sends_a_tool_call_as_claude_wrote_it(api, run_stop, transcript):
-    run_stop(transcript(turn()))
-
-    assert REPLY in contents(api)
 
 
 def test_keeps_the_prompt_and_the_reply(api, run_stop, transcript):
@@ -247,16 +208,6 @@ def test_does_not_duplicate_a_reply_already_in_the_transcript(
     run_stop(transcript(rows), last_assistant_message="Noted.")
 
     assert contents(api) == ["hello", "Noted."]
-
-
-def test_captures_the_reply_when_the_transcript_is_missing(api, run_stop, tmp_path):
-    result = run_stop(
-        str(tmp_path / "gone.jsonl"),
-        last_assistant_message="a reply with no transcript",
-    )
-
-    assert result.returncode == 0
-    assert api.requests == []
 
 
 def test_reads_string_shaped_content(api, run_stop, transcript):
@@ -427,20 +378,25 @@ def test_survives_a_partially_written_transcript(api, run_stop, transcript):
 
 
 def test_survives_a_missing_transcript(api, run_stop, tmp_path):
-    result = run_stop(str(tmp_path / "does-not-exist.jsonl"))
+    # The reply on the payload does not rescue it: a turn is the transcript, and
+    # half of one is not worth sending.
+    result = run_stop(
+        str(tmp_path / "does-not-exist.jsonl"),
+        last_assistant_message="a reply with no transcript",
+    )
 
     assert result.returncode == 0
     assert api.requests == []
 
 
 def test_survives_a_dead_server(run_stop, transcript):
-    result = run_stop(transcript(turn()), env={"MEMORI_API_URL": "http://127.0.0.1:1"})
+    result = run_stop(transcript(turn()), config={"api_url": "http://127.0.0.1:1"})
 
     assert result.returncode == 0
 
 
 def test_survives_missing_credentials(api, run_stop, transcript):
-    result = run_stop(transcript(turn()), env={"MEMORI_IDENTITY_TOKEN": ""})
+    result = run_stop(transcript(turn()), config={"identity_token": ""})
 
     assert result.returncode == 0
     assert api.requests == []

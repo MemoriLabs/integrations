@@ -34,27 +34,17 @@ def emit(context, event):
     )
 
 
-def main(handler=None):
-    """
-    Run one hook.
-
-    Pass a handler when the entry point serves a single event, which is how
-    hooks.json wires them. With no handler the event name in the payload picks
-    one, which is what `bin/memori-hook` does for manual runs and tests.
-    """
+def main(handler):
+    """Run one hook. hooks.json wires one entry point per event."""
 
     try:
         payload = read_payload()
-        if not payload:
-            return 0
 
-        if handler is None:
-            context = events.handle(payload)
-        else:
+        if payload:
             context = events.run(handler, payload)
 
-        if context:
-            emit(context, payload.get("hook_event_name"))
+            if context:
+                emit(context, payload.get("hook_event_name"))
     except Exception as e:
         api.log(f"unhandled error: {e}")
 

@@ -2,8 +2,8 @@
 The two blocks the plugin injects into Claude's context.
 
 Each is wrapped in a tag and opened with a header stating how to treat what
-follows. `skills/memory/SKILL.md` covers the same ground; these headers are the
-copy that travels with the content.
+follows. The header is the whole of it: nothing else tells Claude that these
+lines were retrieved rather than said, so it travels with the content.
 """
 
 from memori import api

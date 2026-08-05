@@ -16,23 +16,19 @@ From the command line:
 
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
-claude plugin install memori@memorilabs \
-  --config api_url=https://memori.example.com \
-  --config identity_token=id_your_token_here \
-  --config api_header_value=your-client-key \
-  --config entity_id=jane-doe
+claude plugin install memori@memorilabs
 claude plugin enable memori@memorilabs
 ```
 
-It installs **disabled**. Every prompt and reply goes to a server the moment it
-is enabled, so enabling it is a separate step.
+Then start a session and run `/memori:configure`, which asks for your API URL,
+identity token and entity ID and saves them to `~/.claude/memori/config.json`.
 
-To check it works, open Claude Code and ask **"is Memori working?"**. A bundled
-skill runs the diagnostic and reports the result: the configuration a hook would
-see, and whether every endpoint the plugin uses is reachable. It writes nothing.
+It installs **disabled**, and nothing is sent until it is both enabled and
+configured.
 
-See the **[Claude Code quickstart](claude/INSTALL.md)** for the required values,
-installation, and a simple connection check.
+See **[claude/](claude/)** for the configuration options, what gets sent, what it
+keeps on disk, and how to check it is working. The
+**[quickstart](claude/INSTALL.md)** has the required values and the steps.
 
 This is a monorepo, so you can limit what lands on disk:
 
@@ -62,10 +58,26 @@ pip install pre-commit
 pre-commit install
 ```
 
-Each integration owns its own tests. For the Claude Code plugin:
+Every setting lives in `~/.claude/memori/config.json` and nowhere else — no
+environment variable, and nothing a workspace can reach. To point a development
+install at a local server, edit that file:
+
+```json
+{
+  "api_url": "http://localhost:8000",
+  "application_env": "local",
+  "entity_id": "…",
+  "identity_token": "id_…"
+}
+```
+
+The hooks read it once per run, so a change takes effect on the next prompt.
+
+Tests live at the repository root rather than inside an integration, because
+everything under `claude/` is copied into every install.
 
 ```bash
-(cd claude && python -m pytest tests -q)
+python -m pytest tests -q
 
 claude plugin validate .                            # the marketplace manifest
 claude plugin validate claude/.claude-plugin/plugin.json
@@ -83,7 +95,8 @@ reaches anyone.** So a release is:
 
 1. Bump `version` in the integration's `plugin.json`.
 2. Bump the matching `version` in `.claude-plugin/marketplace.json`.
-3. Tag it:
+3. Bump the `version` frontmatter in each `claude/skills/*/SKILL.md`.
+4. Tag it:
 
 ```bash
 claude plugin tag claude --push
@@ -91,7 +104,8 @@ claude plugin tag claude --push
 
 `claude plugin tag` creates a `memori--v<version>` tag and refuses to run if
 `plugin.json` and the marketplace entry disagree, which is what keeps steps 1
-and 2 honest.
+and 2 honest. Step 3 is kept honest by the test suite, not by the tagger, so run
+the tests before tagging.
 
 ## License
 

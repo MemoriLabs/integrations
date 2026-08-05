@@ -80,5 +80,5 @@ def test_a_script_survives_rubbish_on_stdin(run_script, name):
 @pytest.mark.parametrize("name", SCRIPTS)
 def test_a_script_survives_a_dead_server(run_script, name, payloads):
     for payload in payloads:
-        result = run_script(name, payload, env={"MEMORI_API_URL": "http://127.0.0.1:1"})
+        result = run_script(name, payload, config={"api_url": "http://127.0.0.1:1"})
         assert result.returncode == 0

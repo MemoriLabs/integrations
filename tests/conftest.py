@@ -8,12 +8,22 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_HOOK = os.path.join(_ROOT, "bin", "memori-hook")
-_FIXTURES = os.path.join(_ROOT, "tests", "fixtures", "hook_payloads.json")
+# Outside the plugin, not beside it: marketplace.json points `source` at
+# ./claude, and everything under that is copied into every install.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.join(os.path.dirname(_HERE), "claude")
+_FIXTURES = os.path.join(_HERE, "fixtures", "hook_payloads.json")
+
+# Claude Code runs one script per event and nothing dispatches on the event
+# name, so this is where the mapping lives rather than in anything that ships.
+SCRIPT_FOR = {
+    "SessionStart": "session_start",
+    "Stop": "stop",
+    "UserPromptSubmit": "user_prompt_submit",
+}
 
 # Most tests import the library directly, which is far quicker than forking a
-# process. The subprocess tests remain, covering what only the real binary can:
+# process. The subprocess tests remain, covering what only a real process can:
 # exit codes, stdout shape, and the entry scripts hooks.json actually calls.
 sys.path.insert(0, os.path.join(_ROOT, "lib"))
 
@@ -22,6 +32,34 @@ def script(name, suffix=".py"):
     """Path to one of the files hooks.json points at."""
 
     return os.path.join(_ROOT, "hooks", f"{name}{suffix}")
+
+
+def config_path():
+    return os.path.join(os.path.expanduser("~"), ".claude", "memori", "config.json")
+
+
+def stored():
+    try:
+        with open(config_path()) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def configure(values):
+    """
+    Write what the configure skill would leave behind.
+
+    Merged onto whatever is already there, so a test names only what it cares
+    about. An empty value unsets, which is how a test says "never configured".
+    """
+
+    merged = {**stored(), **values}
+
+    os.makedirs(os.path.dirname(config_path()), exist_ok=True)
+
+    with open(config_path(), "w") as f:
+        json.dump({k: v for k, v in merged.items() if v not in (None, "")}, f)
 
 
 class _Recorder(BaseHTTPRequestHandler):
@@ -57,13 +95,15 @@ class _Recorder(BaseHTTPRequestHandler):
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(environment):
     server = HTTPServer(("127.0.0.1", 0), _Recorder)
     server.requests = []
     server.responses = {}
 
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setenv("MEMORI_API_URL", f"http://127.0.0.1:{server.server_port}")
+
+    # After `environment`, which writes the rest of the configuration.
+    configure({"api_url": f"http://127.0.0.1:{server.server_port}"})
 
     yield server
 
@@ -71,22 +111,26 @@ def api(monkeypatch):
     server.server_close()
 
 
+CONFIGURED = {
+    "api_header_name": "X-Memori-API-Key",
+    "api_header_value": "test-client-key",
+    "entity_id": "tester",
+    "identity_token": "id_test_acme_abcdefgh",
+}
+
+
 @pytest.fixture(autouse=True)
 def environment(monkeypatch, tmp_path_factory):
-    for key in list(os.environ):
-        if key.startswith("MEMORI_") or key.startswith("CLAUDE_PLUGIN_OPTION_"):
-            monkeypatch.delenv(key, raising=False)
-
-    # Configuration is resolved partly from settings files, so tests must not see
-    # the developer's own. Point HOME and the project root somewhere empty; tests
-    # that need a settings file write one there themselves.
+    # The config file lives under HOME, so a developer's own install would
+    # otherwise answer for a test.
     monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path_factory.mktemp("project")))
 
-    monkeypatch.setenv("MEMORI_API_HEADER_NAME", "X-Memori-API-Key")
-    monkeypatch.setenv("MEMORI_API_HEADER_VALUE", "test-client-key")
-    monkeypatch.setenv("MEMORI_ENTITY_ID", "tester")
-    monkeypatch.setenv("MEMORI_IDENTITY_TOKEN", "id_test_acme_abcdefgh")
+    # The cache outlives a test: the module is imported once for the session.
+    from memori import config
+
+    config._loaded = None
+
+    configure(CONFIGURED)
 
 
 @pytest.fixture(scope="session")
@@ -100,29 +144,6 @@ def payloads():
 @pytest.fixture
 def prompt_payload(payloads):
     return next(p for p in payloads if p["hook_event_name"] == "UserPromptSubmit")
-
-
-@pytest.fixture
-def project_settings(monkeypatch, tmp_path):
-    """Write the .claude/settings.json a cloned repository could have committed."""
-
-    def _write(env):
-        root = tmp_path / "workspace"
-        (root / ".claude").mkdir(parents=True, exist_ok=True)
-
-        with open(root / ".claude" / "settings.json", "w") as f:
-            json.dump({"env": env}, f)
-
-        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
-
-        # Claude Code merges that block into every hook process before the hook
-        # gets a say. Reproducing it is the whole point of these tests.
-        for key, value in env.items():
-            monkeypatch.setenv(key, value)
-
-        return str(root)
-
-    return _write
 
 
 @pytest.fixture
@@ -171,14 +192,26 @@ def transcript(tmp_path):
 
 @pytest.fixture
 def run_hook():
-    def _run(payload, env=None, args=(), entry=_HOOK):
-        environment = dict(os.environ)
-        environment.update(env or {})
+    """
+    Drive the entry point hooks.json names for this payload's event.
+
+    `config` names the settings this test wants changed; the subprocess inherits
+    HOME, so it reads the file those land in.
+    """
+
+    def _run(payload, config=None, entry=None):
+        if config:
+            configure(config)
+
+        if entry is None:
+            named = (
+                payload.get("hook_event_name") if isinstance(payload, dict) else None
+            )
+            entry = script(SCRIPT_FOR.get(named, "user_prompt_submit"))
 
         return subprocess.run(
-            [sys.executable, entry, *args],
+            [sys.executable, entry],
             capture_output=True,
-            env=environment,
             input=payload if isinstance(payload, str) else json.dumps(payload),
             text=True,
             timeout=30,
@@ -191,8 +224,8 @@ def run_hook():
 def run_script(run_hook):
     """Drive one of the per-event entry points, as Claude Code does."""
 
-    def _run(name, payload, env=None):
-        return run_hook(payload, env=env, entry=script(name))
+    def _run(name, payload, config=None):
+        return run_hook(payload, config=config, entry=script(name))
 
     return _run
 
@@ -247,21 +280,9 @@ def run_shim(tmp_path):
 
 
 @pytest.fixture
-def settings(monkeypatch):
-    """Resolve configuration afresh; the library caches it per process."""
+def settings():
+    """Resolve configuration afresh, for a test that rewrites the file."""
 
     from memori import config
 
-    config.load()
-
-    yield config.load
-
-    config.load()
-
-
-@pytest.fixture
-def run_check(run_hook):
-    def _run(env=None):
-        return run_hook("", env=env, args=["--check"])
-
-    return _run
+    return config.load

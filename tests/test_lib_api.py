@@ -11,6 +11,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from conftest import configure
 from memori import api
 
 
@@ -52,13 +53,13 @@ def serve():
 
 
 @pytest.fixture
-def servers(monkeypatch, settings):
+def servers(settings):
     """A Memori, and a second host it might be redirected to."""
 
     memori, other = serve(), serve()
     memori.elsewhere = f"http://127.0.0.1:{other.server_port}"
 
-    monkeypatch.setenv("MEMORI_API_URL", f"http://127.0.0.1:{memori.server_port}")
+    configure({"api_url": f"http://127.0.0.1:{memori.server_port}"})
     settings()
 
     yield memori, other
