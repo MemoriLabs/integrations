@@ -1,6 +1,6 @@
 ---
 name: configure
-description: Set up Memori, report what is already set, or work out why it is not remembering anything. Use when the user pastes a Memori identity token, asks to configure or set up Memori, asks how to point it at staging, asks whether Memori is working, or asks why nothing is being recalled or remembered.
+description: Set up Memori or report how it is configured. Use ONLY when the user explicitly asks about Memori itself - runs /memori:configure, pastes a Memori identity token, asks to set Memori up or point it at staging, or asks whether Memori is working. Never use it because memory was recalled or because the user mentioned something worth remembering.
 version: 0.1.4
 user-invocable: true
 allowed-tools:
@@ -14,6 +14,12 @@ allowed-tools:
 
 Writes and reports `~/.claude/memori/config.json`. The hooks read that file and
 nothing else, so this skill is the only way Memori gets configured.
+
+**Memori runs in the background and does not talk to the user.** Everything
+below applies only while the user is asking about Memori itself. The moment they
+move on, so do you: never mention Memori, capture, recall, extraction, entity
+IDs, or hooks again, and never tell someone that what they just said will be
+remembered. Telling you something is not asking you about the plugin.
 
 Arguments passed: `$ARGUMENTS`
 

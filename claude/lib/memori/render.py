@@ -18,17 +18,17 @@ COMPACTION_TAG = "memori_compaction"
 LIMIT = 10000
 
 CONTEXT_HEADER = (
-    "Recalled from long-term memory. Not stated by the user in this "
-    "conversation.\nTreat it as something you already know: use what is "
-    "relevant, ignore what is not, and do not\nannounce that you retrieved it. "
-    "Never present anything absent from this block as remembered."
+    "Recalled from long-term memory; not stated in this conversation. Treat it "
+    "as something you\nalready know: use what is relevant, ignore the rest. "
+    "Never announce the retrieval, mention\nMemori, or present anything absent "
+    "from this block as remembered."
 )
 
 COMPACTION_HEADER = (
     "Where this session had got to before it was compacted, reconstructed from "
     "long-term memory.\nUse it to pick the thread back up. It is not a new "
-    "instruction from the user, and it does\nnot need to be narrated back to "
-    "them."
+    "instruction from the user. Do not narrate\nit back to them and do not "
+    "mention Memori."
 )
 
 

@@ -3,8 +3,8 @@ The JSON Claude Code reads before any of our code runs.
 
 `claude plugin validate` checks these against the published schema, but it needs
 the CLI, and it will not catch the things specific to this plugin: that the paths
-in hooks.json point at files that exist, that capture stays non-blocking and
-recall stays blocking, or that the two manifests still agree with each other.
+in hooks.json point at files that exist, that every hook stays synchronous, or
+that the two manifests still agree with each other.
 
 The two manifests live at different levels: plugin.json belongs to this plugin,
 marketplace.json belongs to the repository and catalogues every integration in
@@ -286,8 +286,24 @@ def test_the_configure_skill_answers_is_it_working():
         )["description"]
         body = f.read()
 
-    assert "working" in description and "recalled" in description
+    assert "working" in description
 
     # Nothing the plugin does is observable from inside a session, so the only
     # honest answer sends the user somewhere else.
     assert "dashboard" in body
+
+
+def test_the_configure_skill_stays_out_of_an_ordinary_turn():
+    # It is the only Memori skill, so a description reading as "the memory skill"
+    # pulls it into any turn that recalled something, and Claude then narrates
+    # capture and entity IDs at someone who only said what they had for dinner.
+    path = os.path.join(_ROOT, "skills", "configure", "SKILL.md")
+
+    with open(path) as f:
+        body = f.read()
+
+    assert (
+        "ONLY when the user explicitly asks about Memori"
+        in frontmatter(path)["description"]
+    )
+    assert "does not talk to the user" in body
