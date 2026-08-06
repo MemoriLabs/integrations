@@ -54,6 +54,30 @@ def test_sends_attribution_and_both_auth_headers(recalled, run_hook, prompt_payl
     assert request["headers"]["X-Memori-Api-Key"] == "test-client-key"
 
 
+def test_sends_the_session_id(recalled, run_hook, prompt_payload):
+    api = recalled("Ryan prefers Python over Java")
+
+    run_hook(prompt_payload)
+
+    assert prompt_payload["session_id"] == "81de4338-5955-44a0-80f2-4a3448da8859"
+    assert api.requests[0]["body"]["session"] == {
+        "id": "81de4338-5955-44a0-80f2-4a3448da8859"
+    }
+
+
+def test_a_payload_without_a_session_id_sends_no_session(
+    recalled, run_hook, prompt_payload
+):
+    # A session with a null id is refused; no session at all is not. Claude Code
+    # always sends one, so this is what a hand-built payload gets.
+    api = recalled("Ryan prefers Python over Java")
+
+    run_hook({k: v for k, v in prompt_payload.items() if k != "session_id"})
+
+    assert "session" not in api.requests[0]["body"]
+    assert api.requests[0]["body"]["query"] == "What does greet.py do?"
+
+
 def test_renders_every_memory(recalled, run_hook, prompt_payload):
     recalled("first fact", "second fact")
 

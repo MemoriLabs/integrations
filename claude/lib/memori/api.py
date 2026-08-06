@@ -100,8 +100,12 @@ def terminal(error):
     return f"HTTP {error.code} — {named}" if named else None
 
 
-def get(path, timeout=TIMEOUT):
-    return request(path, timeout=timeout)
+def get(path, params=None, timeout=TIMEOUT):
+    """A parameter with no value is left off rather than sent empty."""
+
+    query = urllib.parse.urlencode({k: v for k, v in (params or {}).items() if v})
+
+    return request(f"{path}?{query}" if query else path, timeout=timeout)
 
 
 def post(path, body, timeout=TIMEOUT):

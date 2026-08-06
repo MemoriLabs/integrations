@@ -81,7 +81,10 @@ class _Recorder(BaseHTTPRequestHandler):
             {"body": body, "headers": dict(self.headers), "path": self.path}
         )
 
-        status, response = self.server.responses.get(self.path, (200, {}))
+        # Keyed by endpoint: a test says what /v1/compaction answers without
+        # having to spell out the query string the plugin sends it.
+        endpoint = self.path.split("?")[0]
+        status, response = self.server.responses.get(endpoint, (200, {}))
         payload = json.dumps(response).encode()
 
         self.send_response(status)

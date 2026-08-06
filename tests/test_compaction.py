@@ -65,9 +65,34 @@ def test_asks_the_server_rather_than_keeping_local_state(compacted, run_compact)
 
     run_compact()
 
-    assert [request["path"] for request in api.requests] == ["/v1/compaction"]
+    assert [request["path"].split("?")[0] for request in api.requests] == [
+        "/v1/compaction"
+    ]
     assert api.requests[0]["headers"]["Authorization"] == "Bearer id_test_acme_abcdefgh"
     assert api.requests[0]["headers"]["X-Memori-Api-Key"] == "test-client-key"
+
+
+def test_asks_for_the_compaction_of_this_session(compacted, run_compact):
+    # Without it the server answers for some other session, which is worse than
+    # answering with nothing.
+    api = compacted()
+
+    run_compact()
+
+    assert api.requests[0]["path"] == (
+        "/v1/compaction?session_id=81de4338-5955-44a0-80f2-4a3448da8859"
+    )
+
+
+def test_a_compaction_without_a_session_id_asks_anyway(compacted, run_hook, payloads):
+    api = compacted()
+
+    started = next(p for p in payloads if p["hook_event_name"] == "SessionStart")
+    payload = {k: v for k, v in started.items() if k != "session_id"}
+
+    run_hook({**payload, "source": "compact"})
+
+    assert api.requests[0]["path"] == "/v1/compaction"
 
 
 def test_renders_every_section(compacted, run_compact):

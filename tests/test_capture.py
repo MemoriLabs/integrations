@@ -301,6 +301,14 @@ def test_sends_attribution_and_the_model(api, run_stop, transcript):
     }
 
 
+def test_both_capture_calls_carry_the_session(api, run_stop, transcript):
+    run_stop(transcript(turn()))
+
+    session = {"id": "81de4338-5955-44a0-80f2-4a3448da8859"}
+    assert bodies(api)["/v1/conversation/turn"]["session"] == session
+    assert bodies(api)["/v1/augmentation"]["session"] == session
+
+
 def test_sends_both_auth_headers(api, run_stop, transcript):
     run_stop(transcript(turn()))
 

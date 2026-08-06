@@ -38,7 +38,12 @@ def on_user_prompt_submit(payload):
 
     try:
         data = api.post(
-            "/v1/recall", {"attribution": api.attribution(), "query": query}
+            "/v1/recall",
+            {
+                "attribution": api.attribution(),
+                "query": query,
+                **session_of(payload),
+            },
         )
     except Exception as e:
         api.report_failure("recall", e)
@@ -74,7 +79,7 @@ def on_stop(payload):
             api.log("no messages in the turn; nothing to capture")
             return None
 
-        deliver(messages, model)
+        deliver(messages, model, session_of(payload))
         api.log(f"captured {len(messages)} messages")
     except Exception as e:
         api.report_failure("capture", e)
@@ -94,7 +99,11 @@ def on_session_start(payload):
         return None
 
     try:
-        data = api.get("/v1/compaction", timeout=api.COMPACTION_TIMEOUT)
+        data = api.get(
+            "/v1/compaction",
+            {"session_id": payload.get("session_id")},
+            timeout=api.COMPACTION_TIMEOUT,
+        )
     except Exception as e:
         api.report_failure("compaction", e)
         return None
@@ -102,7 +111,21 @@ def on_session_start(payload):
     return render.compaction(data or {})
 
 
-def deliver(messages, model):
+def session_of(payload):
+    """
+    The session block for a payload that carries one, and nothing for one that
+    does not.
+
+    The id is what the server requires; a session sent without one is rejected
+    outright, where no session at all is a case it handles.
+    """
+
+    session = payload.get("session_id")
+
+    return {"session": {"id": session}} if session else {}
+
+
+def deliver(messages, model, session):
     """
     Post the turn, then post it for extraction.
 
@@ -113,7 +136,7 @@ def deliver(messages, model):
 
     api.post(
         "/v1/conversation/turn",
-        {"attribution": api.attribution(), "messages": messages},
+        {"attribution": api.attribution(), "messages": messages, **session},
         timeout=api.CAPTURE_TIMEOUT,
     )
     api.post(
@@ -125,6 +148,7 @@ def deliver(messages, model):
                 "llm": {"model": {"provider": "anthropic", "version": model}},
                 "platform": {"provider": "claude-code"},
             },
+            **session,
         },
         timeout=api.CAPTURE_TIMEOUT,
     )
