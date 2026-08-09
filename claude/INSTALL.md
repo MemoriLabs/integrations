@@ -9,12 +9,17 @@ You need three values from your Memori administrator or dashboard:
 - **Entity ID**, a lowercase name for the person whose memories this plugin
   should use, such as `jane-doe`
 
-Use the same entity ID in every Memori client.
+Use the same entity ID in every Memori client. There is no API key to go and
+find; the plugin carries it.
 
-Pointing at staging? Say so while configuring. `application_env` defaults to
-`production` and supplies the client API key, so there is no key to go and find.
+Once enabled and configured, the plugin sends your full conversation to your
+Memori server with no redaction: prompts, replies, tool calls, tool results and
+attachments. See [what gets sent](../README.md#what-gets-sent) before enabling
+it somewhere that matters.
 
-## Install in Claude Code Desktop
+## 1. Install
+
+### Claude Code Desktop
 
 Plugins work in **Local** and **SSH** Code sessions, but not Remote sessions.
 
@@ -28,7 +33,7 @@ Plugins work in **Local** and **SSH** Code sessions, but not Remote sessions.
 
 Start a new Code session, then configure it below.
 
-## Install from the command line
+### Command line
 
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
@@ -38,7 +43,7 @@ claude plugin enable memori@memorilabs
 
 The plugin starts disabled, so the final command is required.
 
-## Configure it
+## 2. Configure
 
 Start a session and run:
 
@@ -56,48 +61,40 @@ prefer:
 
 Run it again any time to see what is set or to change something.
 
-## Check your setup
+## 3. Check it worked
 
-Start Claude Code and ask:
+Ask Claude:
 
 > Is Memori working?
 
-Claude reads your configuration back. It sends nothing and changes nothing.
-
-Beyond that, the Memori dashboard is the only place that shows whether memories
-are accumulating. On a new account it stays empty until a turn or two has been
-captured and extracted.
-
-Nothing else about the plugin is visible from inside a session: the only thing
-it ever adds to a conversation is the memories it recalled, so a failure is
-silent by design. To see one, start Claude Code with a debug log and read it:
-
-```bash
-claude --debug-file memori.log
-```
-
-A rejected token, an entity that cannot read its pool, a url that is not a
-Memori server, and a config file that cannot be parsed are all written there in
-full, whether or not `debug` is set in your configuration.
+It reads your configuration back. It sends nothing and changes nothing.
 
 That is it. Memori now recalls relevant memories before each prompt and captures
 new ones after each completed turn.
 
-## Important privacy note
+## If something is wrong
 
-When enabled, the plugin sends the full conversation to your Memori server,
-including prompts, replies, tool calls, tool results, and attachments. Do not
-enable it in a project where that is not appropriate.
+Nothing else about the plugin is visible from inside a session: the only thing it
+ever adds to a conversation is the memories it recalled, so a failure is silent
+by design. Work through these in order.
 
-It also writes one file locally, `~/.claude/memori/config.json`, holding your
-settings and the identity token, `chmod 600`. No conversation and no log.
-Uninstalling does not remove it — delete `~/.claude/memori/` if you want it gone.
-
-## Need help?
-
-- Ask Claude **"is Memori working?"** and it will read your configuration back.
 - Confirm the plugin is enabled with `claude plugin list`.
-- Change your configuration with `/memori:configure`.
-- If memories are not appearing, confirm that every Memori client uses the same
-  entity ID, and that `application_env` names the deployment you meant.
-- To see why something failed, run `claude --debug-file memori.log` and read it.
+- Confirm your configuration with `/memori:configure`, and that every Memori
+  client uses the same entity ID.
+- Check the Memori dashboard, the only place that shows whether memories are
+  accumulating. On a new account it stays empty until a turn or two has been
+  captured and extracted.
+- Read the hook's own errors:
+
+  ```bash
+  claude --debug-file memori.log
+  ```
+
+  A rejected token, an entity that cannot read its pool, a url that is not a
+  Memori server, and a config file that cannot be parsed are all written there in
+  full.
+
+## Uninstalling
+
+Removing the plugin leaves `~/.claude/memori/config.json` behind, which holds
+your settings and identity token. Delete `~/.claude/memori/` if you want it gone.

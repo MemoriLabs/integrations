@@ -3,109 +3,74 @@
 Official Memori integrations for third-party tools. This repository is also a
 Claude Code plugin marketplace.
 
-| Integration | What it is |
-|---|---|
-| [claude](claude/) | Persistent memory for Claude Code. Recall before each prompt, capture after each turn. |
+| Integration | What it is | |
+|---|---|---|
+| [claude](claude/) | Persistent memory for Claude Code | [Install](claude/INSTALL.md) |
 
-## Claude Code
+## Memori for Claude Code
 
-Using the desktop app? Follow the
-**[Claude Code Desktop steps](claude/INSTALL.md#install-in-claude-code-desktop)**.
+Gives Claude persistent memory. Before each prompt it asks Memori what it already
+knows about you and injects it; after each turn it sends the conversation back to
+be remembered.
 
-From the command line:
+**[Install and configure →](claude/INSTALL.md)**
+
+When Claude Code compacts a long conversation, the recalled memories fall out of
+context along with everything else. Memori then re-injects a summary of what the
+session had established, so the thread survives.
+
+## Install
 
 ```bash
 claude plugin marketplace add MemoriLabs/integrations
-claude plugin install memori@memorilabs
-claude plugin enable memori@memorilabs
 ```
 
-Then start a session and run `/memori:configure`, which asks for your API URL,
-identity token and entity ID and saves them to `~/.claude/memori/config.json`.
+Then follow the [quickstart](claude/INSTALL.md), which covers the desktop app,
+the command line, and configuring it.
 
-It installs **disabled**, and nothing is sent until it is both enabled and
-configured.
+## Configuration
 
-See **[claude/](claude/)** for the configuration options, what gets sent, what it
-keeps on disk, and how to check it is working. The
-**[quickstart](claude/INSTALL.md)** has the required values and the steps.
+Everything lives in `~/.claude/memori/config.json`, written by
+`/memori:configure` with `chmod 600`. There are no environment variables, so a
+repository cannot configure Memori.
 
-This is a monorepo, so you can limit what lands on disk:
+| Setting | What it is |
+|---|---|
+| `api_url` | Your Memori server, such as `https://api.memorilabs.ai` |
+| `identity_token` | Authenticates you. Starts with `id_` |
+| `entity_id` | Who a memory is attributed to. Use the same value in every Memori client |
 
-```bash
-claude plugin marketplace add MemoriLabs/integrations \
-  --sparse .claude-plugin claude
-```
+All three are required, and `/memori:configure` asks for exactly those.
 
-## Development
+## What gets sent
 
-Python 3.12 to develop and run the tests. The plugin itself runs on 3.9 and up,
-which is what `claude/hooks/python.sh` gates on, because that is what macOS
-ships and stranding it would break the default install.
+The whole turn: your prompts, Claude's replies, its thinking, every tool call
+with its full arguments, every tool result in full, and the attachments Claude
+Code adds.
 
-Formatting is black at 88 columns and isort with the black profile, matching the
-Memori backend.
+There is no redaction and no filtering, so **anything a session reads reaches the
+server**: a credential in a file Claude opened, a token printed by a command it
+ran, or one you pasted into a prompt yourself.
 
-**Installing copies the plugin**, into
-`~/.claude/plugins/cache/memorilabs/memori/<version>/`, and that copy is what
-runs. Editing a checkout changes nothing until the version is bumped. If you
-added the marketplace from a local path rather than from GitHub, the entry keeps
-that path, so moving the directory breaks the plugin with `cache-miss` and the
-marketplace has to be re-added.
+The only thing removed is the plugin's own injected context. A turn is sent once,
+no conversation is kept on disk, and an interrupted turn is not remembered.
 
-```bash
-pip install pre-commit
-pre-commit install
-```
+## What it keeps on disk
 
-Every setting lives in `~/.claude/memori/config.json` and nowhere else — no
-environment variable, and nothing a workspace can reach. To point a development
-install at a local server, edit that file:
+One file, `~/.claude/memori/config.json`: your settings and nothing else. It is
+the only place the identity token exists in full, and uninstalling does not
+remove it.
 
-```json
-{
-  "api_url": "http://localhost:8000",
-  "application_env": "local",
-  "entity_id": "…",
-  "identity_token": "id_…"
-}
-```
+## Failures are silent
 
-The hooks read it once per run, so a change takes effect on the next prompt.
+**The only thing this plugin ever adds to a conversation is the memories it
+recalled.** No status, no warning, no notice that something failed. Errors go to
+the hook's stderr, so `claude --debug-file memori.log` is how you see one, and the
+Memori dashboard is the only place that shows what was stored.
 
-Tests live at the repository root rather than inside an integration, because
-everything under `claude/` is copied into every install.
-
-```bash
-python -m pytest tests -q
-
-claude plugin validate .                            # the marketplace manifest
-claude plugin validate claude/.claude-plugin/plugin.json
-```
-
-Run both `validate` calls from the repository root, and in that order. On a
-directory `validate` takes the marketplace manifest if it finds one and stops
-there, so the one-argument form never checks `plugin.json`.
-
-## Releasing
-
-An installed plugin is pinned to the `version` in its `plugin.json`, and the
-cached copy is what runs. **A change that does not bump the version never
-reaches anyone.** So a release is:
-
-1. Bump `version` in the integration's `plugin.json`.
-2. Bump the matching `version` in `.claude-plugin/marketplace.json`.
-3. Bump the `version` frontmatter in each `claude/skills/*/SKILL.md`.
-4. Tag it:
-
-```bash
-claude plugin tag claude --push
-```
-
-`claude plugin tag` creates a `memori--v<version>` tag and refuses to run if
-`plugin.json` and the marketplace entry disagree, which is what keeps steps 1
-and 2 honest. Step 3 is kept honest by the test suite, not by the tagger, so run
-the tests before tagging.
+The hooks never exit non-zero. A dead server, missing credentials or a slow
+response degrade to "no memories", never to a lost prompt or a turn that will not
+end.
 
 ## License
 
