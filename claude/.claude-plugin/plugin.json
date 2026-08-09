@@ -7,7 +7,7 @@
   "author": {
     "name": "Memori Labs"
   },
-  "homepage": "https://github.com/MemoriLabs/integrations/tree/main/claude",
+  "homepage": "https://github.com/MemoriLabs/integrations",
   "repository": "https://github.com/MemoriLabs/integrations",
   "keywords": ["memory", "recall", "context", "personalization"],
   "defaultEnabled": false
