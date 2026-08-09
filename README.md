@@ -15,11 +15,13 @@ It also survives compaction. When Claude Code compacts a long conversation, reca
 ### Quickstart
 
 ```
-/plugin marketplace add MemoriLabs/integrations
-/plugin install memori@memorilabs
-/plugin enable memori@memorilabs
+claude plugin marketplace add MemoriLabs/integrations
+claude plugin install memori@memorilabs
+claude plugin enable memori@memorilabs
 /memori:configure
 ```
+
+The plugin starts disabled, so the final command is required. Then start a new session so the hooks load.
 
 Full options (API keys, self-hosted endpoints, entity configuration):
 [Install and configure →](https://github.com/MemoriLabs/integrations/blob/main/claude/INSTALL.md)
