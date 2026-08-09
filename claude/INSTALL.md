@@ -19,6 +19,17 @@ it somewhere that matters.
 
 ## 1. Install
 
+### Command line
+
+```bash
+claude plugin marketplace add MemoriLabs/integrations
+claude plugin install memori@memorilabs
+claude plugin enable memori@memorilabs
+```
+
+The plugin starts disabled, so the final command is required. Then start a new
+session so the hooks load.
+
 ### Claude Code Desktop
 
 Plugins work in **Local** and **SSH** Code sessions, but not Remote sessions.
@@ -32,16 +43,6 @@ Plugins work in **Local** and **SSH** Code sessions, but not Remote sessions.
 5. Enable Memori.
 
 Start a new Code session, then configure it below.
-
-### Command line
-
-```bash
-claude plugin marketplace add MemoriLabs/integrations
-claude plugin install memori@memorilabs
-claude plugin enable memori@memorilabs
-```
-
-The plugin starts disabled, so the final command is required.
 
 ## 2. Configure
 
