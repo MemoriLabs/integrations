@@ -14,7 +14,7 @@ find; the plugin carries it.
 
 Once enabled and configured, the plugin sends your full conversation to your
 Memori server with no redaction: prompts, replies, tool calls, tool results and
-attachments. See [what gets sent](../README.md#what-gets-sent) before enabling
+attachments. See [what gets sent](../README.md#privacy-what-gets-sent) before enabling
 it somewhere that matters.
 
 ## 1. Install

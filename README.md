@@ -7,51 +7,118 @@ Claude Code plugin marketplace.
 |---|---|---|
 | [claude](claude/) | Persistent memory for Claude Code | [Install](claude/INSTALL.md) |
 
+---
+
 ## Memori for Claude Code
 
-Gives Claude persistent memory. Before each prompt it asks Memori what it already
-knows about you and injects it; after each turn it sends the conversation back to
-be remembered.
+**Persistent memory for Claude Code — your agent learns from every session
+instead of starting from zero.**
 
-**[Install and configure →](claude/INSTALL.md)**
+Claude Code forgets everything between sessions: the bug you diagnosed
+yesterday, the convention you corrected twice, the command that finally worked.
+Memori fixes that. Before each prompt it recalls what it already knows — about
+you, your codebase, and your past sessions — and injects it. After each turn, it
+learns from what happened, including from the execution trace: what Claude
+tried, what failed, and what worked.
 
-When Claude Code compacts a long conversation, the recalled memories fall out of
-context along with everything else. Memori then re-injects a summary of what the
-session had established, so the thread survives.
+It also survives compaction. When Claude Code compacts a long conversation,
+recalled memories fall out of context with everything else — Memori re-injects a
+summary of what the session had established, so the thread survives.
 
-## What gets sent
+### Quickstart
 
-The whole turn: your prompts, Claude's replies, its thinking, every tool call
-with its full arguments, every tool result in full, and the attachments Claude
-Code adds.
+```
+/plugin marketplace add MemoriLabs/integrations
+/plugin install memori@memorilabs
+/plugin enable memori@memorilabs
+/memori:configure
+```
 
-There is no redaction and no filtering, so **anything a session reads reaches the
-server**: a credential in a file Claude opened, a token printed by a command it
-ran, or one you pasted into a prompt yourself.
+That's it. Full options (API keys, self-hosted endpoints, entity configuration):
+[Install and configure →](claude/INSTALL.md)
 
-The only thing removed is the plugin's own injected context. A turn is sent once,
-no conversation is kept on disk, and an interrupted turn is not remembered.
+### How it works
 
-## What it keeps on disk
+1. **Recall** — before each prompt, the plugin asks Memori what it knows that's
+   relevant and injects it into context.
+2. **Act** — Claude works with that knowledge in hand: past fixes, project
+   conventions, known dead ends.
+3. **Remember** — after each turn, the full exchange is sent to Memori, which
+   structures it into durable memories. Stale memories are superseded rather
+   than accumulating; duplicates are consolidated.
+
+Memori treats agent **trace** as a first-class input — not just what was said,
+but what was done. That's what makes it useful for agentic workloads (long
+coding sessions, CI agents, test automation), where the most valuable lessons
+live in tool calls and their outcomes, not in prose.
+[Benchmarks and architecture →](https://memorilabs.ai)
+
+### Privacy: what gets sent
+
+We'd rather you know exactly how this works than find out later.
+
+The whole turn is sent to Memori: your prompts, Claude's replies, its thinking,
+every tool call with its full arguments, every tool result in full, and the
+attachments Claude Code adds.
+
+There is no redaction and no filtering, so **anything a session reads reaches
+the server**: a credential in a file Claude opened, a token printed by a command
+it ran, or one you pasted into a prompt yourself.
+
+The only thing removed is the plugin's own injected context. A turn is sent
+once, no conversation is kept on disk, and an interrupted turn is not
+remembered.
+
+> **Running in a regulated or security-sensitive environment?** Memori deploys
+> as a private single-tenant VPC or fully on-prem — trace never leaves your
+> infrastructure. [Talk to us →](https://memorilabs.ai)
+
+### What it keeps on disk
 
 One file, `~/.claude/memori/config.json`, written by `/memori:configure` with
 `chmod 600`: your settings and nothing else. It is the only place the identity
-token exists in full, and uninstalling does not remove it.
+token exists in full. Note that uninstalling the plugin does not remove it.
 
 It is also the only place the plugin reads settings from. There are no
-environment variables, so a repository cannot configure Memori.
+environment variables, so a repository cannot configure Memori — a cloned repo
+can never redirect your memories to someone else's server.
 
-## Failures are silent
+### Designed to never block Claude
 
-**The only thing this plugin ever adds to a conversation is the memories it
-recalled.** No status, no warning, no notice that something failed. Errors go to
-the hook's stderr, so `claude --debug-file memori.log` is how you see one, and the
-Memori dashboard is the only place that shows what was stored.
+The plugin degrades gracefully, always in the same direction: **the only thing
+it ever adds to a conversation is the memories it recalled.** No status banners,
+no warnings, no interruptions.
 
-The hooks never exit non-zero. A dead server, missing credentials or a slow
-response degrade to "no memories", never to a lost prompt or a turn that will not
-end.
+The hooks never exit non-zero. A dead server, missing credentials, or a slow
+response degrade to "no memories" — never to a lost prompt or a turn that will
+not end.
 
-## License
+Because failures are deliberately invisible in the conversation, diagnostics
+live elsewhere: errors go to the hook's stderr (`claude --debug-file
+memori.log`), and the [Memori dashboard](https://memorilabs.ai) shows what was
+stored.
+
+### Requirements
+
+- Claude Code (latest version recommended)
+- A Memori account or self-hosted Memori instance
+
+### Troubleshooting
+
+- **No memories appearing?** Run `claude --debug-file memori.log` and check for
+  hook errors; verify credentials with `/memori:configure`.
+- **Memories look wrong or stale?** Inspect and manage them in the
+  [dashboard](https://memorilabs.ai) — every memory is inspectable and can be
+  deleted.
+- Something else: [open an issue](https://github.com/MemoriLabs/integrations/issues).
+
+### Enterprise
+
+Private VPC or on-prem deployment, access-controlled memory pools per agent
+fleet, and SQL-native storage in your own database. If your agents run in
+production, this is the deployment shape for you:
+[memorilabs.ai](https://memorilabs.ai).
+
+### License
 
 MIT. See [LICENSE](LICENSE).
