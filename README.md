@@ -19,29 +19,6 @@ When Claude Code compacts a long conversation, the recalled memories fall out of
 context along with everything else. Memori then re-injects a summary of what the
 session had established, so the thread survives.
 
-## Install
-
-```bash
-claude plugin marketplace add MemoriLabs/integrations
-```
-
-Then follow the [quickstart](claude/INSTALL.md), which covers the desktop app,
-the command line, and configuring it.
-
-## Configuration
-
-Everything lives in `~/.claude/memori/config.json`, written by
-`/memori:configure` with `chmod 600`. There are no environment variables, so a
-repository cannot configure Memori.
-
-| Setting | What it is |
-|---|---|
-| `api_url` | Your Memori server, such as `https://api.memorilabs.ai` |
-| `identity_token` | Authenticates you. Starts with `id_` |
-| `entity_id` | Who a memory is attributed to. Use the same value in every Memori client |
-
-All three are required, and `/memori:configure` asks for exactly those.
-
 ## What gets sent
 
 The whole turn: your prompts, Claude's replies, its thinking, every tool call
@@ -57,9 +34,12 @@ no conversation is kept on disk, and an interrupted turn is not remembered.
 
 ## What it keeps on disk
 
-One file, `~/.claude/memori/config.json`: your settings and nothing else. It is
-the only place the identity token exists in full, and uninstalling does not
-remove it.
+One file, `~/.claude/memori/config.json`, written by `/memori:configure` with
+`chmod 600`: your settings and nothing else. It is the only place the identity
+token exists in full, and uninstalling does not remove it.
+
+It is also the only place the plugin reads settings from. There are no
+environment variables, so a repository cannot configure Memori.
 
 ## Failures are silent
 
