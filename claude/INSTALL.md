@@ -9,6 +9,8 @@ You need three values from your Memori administrator or dashboard:
 - **Entity ID**, a lowercase name for the person whose memories this plugin
   should use, such as `jane-doe`
 
+A mistyped entity ID will not error. Memories will still be created, just under the wrong entity, so the dashboard will look off and recall will not find what you expect. Check this first if something looks wrong.
+
 Use the same entity ID in every Memori client. There is no API key to go and
 find; the plugin carries it.
 
@@ -52,7 +54,7 @@ Ask Claude:
 
 > Is Memori working?
 
-It reads your configuration back. It sends nothing and changes nothing.
+It reads your configuration back; the check itself does not contact your Memori server and changes nothing.
 
 That is it. Memori now recalls relevant memories before each prompt and captures
 new ones after each completed turn.
