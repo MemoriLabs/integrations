@@ -35,7 +35,7 @@ Start a session and run:
 Claude asks for the three values and writes them to `~/.claude/memori/config.json`, readable only by you. Give them in one go if you prefer:
 
 ```
-/memori:configure https://api.memorilabs.ai id_your_identity_id_here jane-doe
+/memori:configure https://api.memorilabs.ai id_your_identity_token_here jane-doe
 ```
 
 Run it again any time to see what is set or to change something.
@@ -65,7 +65,7 @@ The only thing removed is the plugin's own injected context. A turn is sent once
 
 ### What it keeps on disk
 
-One file, `~/.claude/memori/config.json`, written by `/memori:configure` with `chmod 600`: your settings and nothing else. It is the only place the identity ID exists in full.
+One file, `~/.claude/memori/config.json`, written by `/memori:configure` with `chmod 600`: your settings and nothing else. It is the only place the identity token exists in full.
 
 It is also the only place the plugin reads settings from. There are no environment variables, so a repository cannot configure Memori - a cloned repo can never redirect your memories to someone else's server.
 

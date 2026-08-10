@@ -5,11 +5,11 @@
 You need three values from your Memori administrator or dashboard:
 
 - **API URL**, such as `https://api.memorilabs.ai`
-- **Identity ID**, which starts with `id_`
+- **Identity token**, which starts with `id_`
 - **Entity ID**, a lowercase name for the person whose memories this plugin
   should use, such as `jane-doe`
 
-Double-check your identity ID and entity ID. The identity ID should match the one shown in your dashboard, and your entity ID is entered during the configure step. If the identity ID is mistyped or you forget to enter an entity ID, you won’t see memories stored or recalled in your assigned pools. A mistyped entity ID won’t error either - memories will be created under the wrong entity, so the dashboard will look off. If your memory dashboard looks off, verify these two values first.
+Double-check your identity token and entity ID. The identity token should match the one shown in your dashboard, and your entity ID is entered during the configure step. If the identity token is mistyped or you forget to enter an entity ID, you won’t see memories stored or recalled in your assigned pools. A mistyped entity ID won’t error either - memories will be created under the wrong entity, so the dashboard will look off. If your memory dashboard looks off, verify these two values first.
 
 Once enabled and configured, the plugin sends your full conversation to your
 Memori server with no redaction: prompts, replies, tool calls, tool results and
@@ -40,7 +40,7 @@ Claude asks for the three values and writes them to
 prefer:
 
 ```
-/memori:configure https://api.memorilabs.ai id_your_identity_id_here jane-doe
+/memori:configure https://api.memorilabs.ai id_your_identity_token_here jane-doe
 ```
 
 Run it again any time to see what is set or to change something.
@@ -81,4 +81,4 @@ by design. Work through these in order.
 ## Uninstalling
 
 Removing the plugin leaves `~/.claude/memori/config.json` behind, which holds
-your settings and identity ID. Delete `~/.claude/memori/` if you want it gone.
+your settings and identity token. Delete `~/.claude/memori/` if you want it gone.

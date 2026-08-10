@@ -1,7 +1,7 @@
 ---
 name: configure
-description: Set up Memori or report how it is configured. Use ONLY when the user explicitly asks about Memori itself - runs /memori:configure, pastes a Memori identity ID also known as an identity token, asks to set Memori up or point it at staging, or asks whether Memori is working. Never use it because memory was recalled or because the user mentioned something worth remembering.
-version: 0.1.5
+description: Set up Memori or report how it is configured. Use ONLY when the user explicitly asks about Memori itself - runs /memori:configure, pastes a Memori identity token, asks to set Memori up or point it at staging, or asks whether Memori is working. Never use it because memory was recalled or because the user mentioned something worth remembering.
+version: 0.1.6
 user-invocable: true
 allowed-tools:
   - Read
@@ -29,9 +29,9 @@ Arguments passed: `$ARGUMENTS`
 
 Read the file. A missing file means not configured, which is not an error.
 
-**Never print the identity ID in full** — show the first 12 characters and
+**Never print the identity token in full** — show the first 12 characters and
 stop. Show `set` or `not set` for the client key; it is a public per-environment
-value and its content helps nobody. The identity ID is also known as the identity token.
+value and its content helps nobody.
 
 ```
 api_url          https://api.memorilabs.ai      (required)
@@ -44,8 +44,9 @@ debug            off                            optional, default off
 
 Then the next step:
 
-- **Nothing set** → *"Give me your API URL, identity ID and entity ID and
-  I'll save them. The identity ID is on your Memori dashboard and starts with `id_`."*
+- **Nothing set** → *"Give me your API URL, identity token and entity ID and
+  I'll save them. The identity token is on your Memori dashboard and starts
+  with `id_`."*
 - **Something missing** → name only what is missing.
 - **All three set** → say it is configured, and see below for whether it works.
 
@@ -68,7 +69,7 @@ available from inside it. There is no negative signal: a refused token or an
 unreachable server goes to the hook's stderr, which Claude Code only shows when
 started with `--debug-file`. Say so rather than reporting that all is well.
 
-**Never call the API yourself to test it.** Putting the identity ID into a
+**Never call the API yourself to test it.** Putting the identity token into a
 shell command writes it into this session's transcript, which Memori captures
 and turns into a memory. Point at the dashboard instead.
 
@@ -103,7 +104,7 @@ give and keep what is already saved.
 
 **Validate before saving, and say so rather than saving something broken:**
 
-- an identity ID starts with `id_`
+- an identity token starts with `id_`
 - an API URL starts with `http://` or `https://` and has no trailing slash
 - `application_env` is `local`, `staging` or `production` — anything else leaves
   the plugin with no client key and nothing is remembered
@@ -123,4 +124,4 @@ recall and capture stop at the next prompt.
   handler unless all four required settings resolve.
 - `application_env` supplies the client API key, so `api_header_value` is only
   set by hand on a deployment carrying its own.
-- This file is the only place the identity ID exists in full.
+- This file is the only place the identity token exists in full.
