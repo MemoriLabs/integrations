@@ -31,7 +31,7 @@ Read the file. A missing file means not configured, which is not an error.
 
 **Never print the identity ID in full** — show the first 12 characters and
 stop. Show `set` or `not set` for the client key; it is a public per-environment
-value and its content helps nobody.
+value and its content helps nobody. The identity ID is also known as the identity token.
 
 ```
 api_url          https://api.memorilabs.ai      (required)
