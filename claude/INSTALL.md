@@ -5,14 +5,11 @@
 You need three values from your Memori administrator or dashboard:
 
 - **API URL**, such as `https://api.memorilabs.ai`
-- **Identity token**, which starts with `id_`
+- **Identity ID**, which starts with `id_`
 - **Entity ID**, a lowercase name for the person whose memories this plugin
   should use, such as `jane-doe`
 
-A mistyped entity ID will not error. Memories will still be created, just under the wrong entity, so the dashboard will look off and recall will not find what you expect. Check this first if something looks wrong.
-
-Use the same entity ID in every Memori client. There is no API key to go and
-find; the plugin carries it.
+Double-check your identity ID and entity ID. The identity ID should match the one shown in your dashboard, and your entity ID is entered during the configure step. If the identity ID is mistyped or you forget to enter an entity ID, you won’t see memories stored or recalled in your assigned pools. A mistyped entity ID won’t error either - memories will be created under the wrong entity, so the dashboard will look off. If your memory dashboard looks off, verify these two values first.
 
 Once enabled and configured, the plugin sends your full conversation to your
 Memori server with no redaction: prompts, replies, tool calls, tool results and
@@ -21,7 +18,7 @@ it somewhere that matters.
 
 ## 1. Install
 
-```bash
+```
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs
 claude plugin enable memori@memorilabs
@@ -43,12 +40,12 @@ Claude asks for the three values and writes them to
 prefer:
 
 ```
-/memori:configure https://api.memorilabs.ai id_your_token_here jane-doe
+/memori:configure https://api.memorilabs.ai id_your_identity_id_here jane-doe
 ```
 
 Run it again any time to see what is set or to change something.
 
-## 3. Check it worked
+## 3. Check if it worked
 
 Ask Claude:
 
@@ -73,15 +70,15 @@ by design. Work through these in order.
   captured and extracted.
 - Read the hook's own errors:
 
-  ```bash
+  ```
   claude --debug-file memori.log
   ```
 
-  A rejected token, an entity that cannot read its pool, a url that is not a
+  A rejected token, an entity that cannot read its pool, a URL that is not a
   Memori server, and a config file that cannot be parsed are all written there in
   full.
 
 ## Uninstalling
 
 Removing the plugin leaves `~/.claude/memori/config.json` behind, which holds
-your settings and identity token. Delete `~/.claude/memori/` if you want it gone.
+your settings and identity ID. Delete `~/.claude/memori/` if you want it gone.
