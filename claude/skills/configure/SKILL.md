@@ -1,6 +1,6 @@
 ---
 name: configure
-description: Set up Memori or report how it is configured. Use ONLY when the user explicitly asks about Memori itself - runs /memori:configure, pastes a Memori identity ID, asks to set Memori up or point it at staging, or asks whether Memori is working. Never use it because memory was recalled or because the user mentioned something worth remembering.
+description: Set up Memori or report how it is configured. Use ONLY when the user explicitly asks about Memori itself - runs /memori:configure, pastes a Memori identity ID also known as an identity token, asks to set Memori up or point it at staging, or asks whether Memori is working. Never use it because memory was recalled or because the user mentioned something worth remembering.
 version: 0.1.5
 user-invocable: true
 allowed-tools:
