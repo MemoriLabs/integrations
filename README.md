@@ -14,14 +14,31 @@ It also survives compaction. When Claude Code compacts a long conversation, reca
 
 ### Quickstart
 
+**1. Install**
+
 ```
 claude plugin marketplace add MemoriLabs/integrations
 claude plugin install memori@memorilabs
 claude plugin enable memori@memorilabs
-/memori:configure
 ```
 
 The plugin starts disabled, so the final command is required. Then start a new session so the hooks load.
+
+**2. Configure**
+
+Start a session and run:
+
+```
+/memori:configure
+```
+
+Claude asks for the three values and writes them to `~/.claude/memori/config.json`, readable only by you. Give them in one go if you prefer:
+
+```
+/memori:configure https://api.memorilabs.ai id_your_identity_id_here jane-doe
+```
+
+Run it again any time to see what is set or to change something.
 
 Full options (API keys, self-hosted endpoints, entity configuration):
 [Install and configure →](https://github.com/MemoriLabs/integrations/blob/main/claude/INSTALL.md)
@@ -48,7 +65,7 @@ The only thing removed is the plugin's own injected context. A turn is sent once
 
 ### What it keeps on disk
 
-One file, `~/.claude/memori/config.json`, written by `/memori:configure` with `chmod 600`: your settings and nothing else. It is the only place the identity token exists in full.
+One file, `~/.claude/memori/config.json`, written by `/memori:configure` with `chmod 600`: your settings and nothing else. It is the only place the identity ID exists in full.
 
 It is also the only place the plugin reads settings from. There are no environment variables, so a repository cannot configure Memori - a cloned repo can never redirect your memories to someone else's server.
 
