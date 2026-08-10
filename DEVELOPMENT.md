@@ -42,7 +42,7 @@ effect on the next prompt.
   "api_url": "http://localhost:8000",
   "application_env": "local",
   "entity_id": "…",
-  "identity_token": "id_…",
+  "identity_id": "id_…",
   "debug": true
 }
 ```

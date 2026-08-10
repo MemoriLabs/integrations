@@ -5,7 +5,7 @@ DEAD_SERVER = {"api_url": "http://127.0.0.1:1"}
 CONFIGURED = {
     "api_header_value": "file-client-key",
     "entity_id": "file-entity",
-    "identity_token": "id_from_the_file",
+    "identity_id": "id_from_the_file",
 }
 
 
@@ -21,10 +21,10 @@ def test_reads_configuration_from_the_file(recalled, run_hook, prompt_payload):
 
 
 def test_a_later_write_replaces_an_earlier_one(recalled, run_hook, prompt_payload):
-    # Rotating a token is editing one key; the rest of the file survives.
+    # Rotating an identity id is editing one key; the rest of the file survives.
     api = recalled("a fact")
 
-    run_hook(prompt_payload, config={**CONFIGURED, "identity_token": "id_rotated"})
+    run_hook(prompt_payload, config={**CONFIGURED, "identity_id": "id_rotated"})
 
     assert api.requests[0]["headers"]["Authorization"] == "Bearer id_rotated"
     assert api.requests[0]["body"]["attribution"] == {"entity": {"id": "file-entity"}}

@@ -1,7 +1,7 @@
 """
 HTTP against Memori, tested by import.
 
-The identity token and the client key ride on every request, so the thing worth
+The identity id and the client key ride on every request, so the thing worth
 pinning down is where they are allowed to travel.
 """
 

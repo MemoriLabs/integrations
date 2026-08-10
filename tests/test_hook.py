@@ -133,7 +133,7 @@ def test_a_refused_recall_injects_nothing(api, run_hook, prompt_payload):
 
 
 def test_survives_missing_credentials(api, run_hook, prompt_payload):
-    result = run_hook(prompt_payload, config={"identity_token": ""})
+    result = run_hook(prompt_payload, config={"identity_id": ""})
 
     assert result.returncode == 0
     assert result.stdout == ""

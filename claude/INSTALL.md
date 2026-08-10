@@ -74,9 +74,9 @@ by design. Work through these in order.
   claude --debug-file memori.log
   ```
 
-  A rejected token, an entity that cannot read its pool, a URL that is not a
-  Memori server, and a config file that cannot be parsed are all written there in
-  full.
+  A rejected identity ID, an entity that cannot read its pool, a URL that is not
+  a Memori server, and a config file that cannot be parsed are all written there
+  in full.
 
 ## Uninstalling
 

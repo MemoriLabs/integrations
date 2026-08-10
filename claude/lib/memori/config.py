@@ -17,7 +17,7 @@ DEFAULTS = {
     "application_env": "production",
     "debug": "false",
     "entity_id": None,
-    "identity_token": None,
+    "identity_id": None,
 }
 
 API_KEYS = {
@@ -26,7 +26,7 @@ API_KEYS = {
     "staging": "c18b1022-7fe2-42af-ab01-b1f9139184f0",
 }
 
-REQUIRED = ("api_header_value", "api_url", "entity_id", "identity_token")
+REQUIRED = ("api_header_value", "api_url", "entity_id", "identity_id")
 
 FALSE = ("", "0", "false", "no", "off")
 

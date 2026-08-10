@@ -172,7 +172,7 @@ def test_survives_a_dead_server(run_compact):
 
 
 def test_survives_missing_credentials(api, run_compact):
-    result = run_compact(config={"identity_token": ""})
+    result = run_compact(config={"identity_id": ""})
 
     assert result.returncode == 0
     assert api.requests == []

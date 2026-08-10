@@ -118,13 +118,13 @@ def test_the_configure_skill_names_the_environments_that_have_a_key():
         assert name in body, name
 
 
-def test_the_configure_skill_never_prints_a_whole_token():
+def test_the_configure_skill_never_prints_a_whole_identity_id():
     # It reads a file holding one, and is read by a model that will happily echo
     # what it was shown unless told not to.
     with open(os.path.join(_ROOT, "skills", "configure", "SKILL.md")) as f:
         body = f.read().lower()
 
-    assert "never print the identity token in full" in body
+    assert "never print the identity id in full" in body
 
 
 def test_the_two_manifests_agree():

@@ -12,7 +12,7 @@ from memori import config
 # a dead server is worth logging and forgetting; a refused credential is not
 # going to come good on its own.
 TERMINAL = {
-    401: "the identity token is being rejected",
+    401: "the identity id is being rejected",
     403: "that identity cannot read the memory pool it asked for",
     404: "nothing at that api url answered as a Memori server",
 }
@@ -34,10 +34,10 @@ class SameHostRedirects(urllib.request.HTTPRedirectHandler):
     Refuse a redirect that would carry the credentials to another host.
 
     urllib copies every header onto the redirected request, with no same-origin
-    check: a 302 to a different host arrives holding the
-    identity token and the client key. `requests` strips them here; urllib does
-    not. A redirect within the same host is left alone, since that is ordinary
-    path or scheme normalisation and the credentials are not going anywhere new.
+    check: a 302 to a different host arrives holding the identity id and the
+    client key. `requests` strips them here; urllib does not. A redirect within
+    the same host is left alone, since that is ordinary path or scheme
+    normalisation and the credentials are not going anywhere new.
     """
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -57,7 +57,7 @@ class SameHostRedirects(urllib.request.HTTPRedirectHandler):
             newurl,
             code,
             f"refused a redirect {refused}, which would have sent the identity "
-            "token and client key there. Check the api url.",
+            "id and client key there. Check the api url.",
             headers,
             fp,
         )
@@ -71,7 +71,7 @@ def request(path, body=None, timeout=TIMEOUT):
     """A body means POST, no body means GET."""
 
     headers = {
-        "Authorization": f"Bearer {config.setting('identity_token')}",
+        "Authorization": f"Bearer {config.setting('identity_id')}",
         "Content-Type": "application/json",
         config.setting("api_header_name"): config.setting("api_header_value"),
     }

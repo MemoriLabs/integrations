@@ -404,7 +404,7 @@ def test_survives_a_dead_server(run_stop, transcript):
 
 
 def test_survives_missing_credentials(api, run_stop, transcript):
-    result = run_stop(transcript(turn()), config={"identity_token": ""})
+    result = run_stop(transcript(turn()), config={"identity_id": ""})
 
     assert result.returncode == 0
     assert api.requests == []

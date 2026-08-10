@@ -118,7 +118,7 @@ CONFIGURED = {
     "api_header_name": "X-Memori-API-Key",
     "api_header_value": "test-client-key",
     "entity_id": "tester",
-    "identity_token": "id_test_acme_abcdefgh",
+    "identity_id": "id_test_acme_abcdefgh",
 }
 
 
